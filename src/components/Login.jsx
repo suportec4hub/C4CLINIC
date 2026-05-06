@@ -30,7 +30,7 @@ export default function Login({ onLogin }) {
 
   return (
     <div style={{
-      display: 'flex', minHeight: '100vh', minHeight: '100dvh',
+      display: 'flex', minHeight: '100dvh',
       fontFamily: "'Instrument Sans', sans-serif"
     }}>
       {/* Painel Esquerdo */}

@@ -4,25 +4,45 @@ import { globalCSS, L } from './constants/theme.js'
 import Login from './components/Login.jsx'
 import Shell from './components/Shell.jsx'
 
+function Spinner() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100dvh', background: L.bg, flexDirection: 'column', gap: 16
+    }}>
+      <div style={{
+        width: 32, height: 32, border: `3px solid ${L.line}`,
+        borderTop: `3px solid ${L.teal}`, borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite'
+      }} />
+      <div style={{ fontSize: 13, color: L.t4 }}>Carregando...</div>
+    </div>
+  )
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [ready, setReady] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const style = document.createElement('style')
     style.textContent = globalCSS
     document.head.appendChild(style)
 
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
-      if (data.session?.user) fetchProfile(data.session.user.id)
+    supabase.auth.getSession().then(({ data, error: e }) => {
+      if (e) { setError(e.message); setReady(true); return }
+      const u = data.session?.user ?? null
+      setUser(u)
+      if (u) fetchProfile(u.id)
       else setReady(true)
-    })
+    }).catch(e => { setError(String(e)); setReady(true) })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) fetchProfile(u.id)
       else { setProfile(null); setReady(true) }
     })
 
@@ -30,13 +50,18 @@ export default function App() {
   }, [])
 
   async function fetchProfile(uid) {
-    const { data } = await supabase
-      .from('usuarios')
-      .select('*, clinicas(*)')
-      .eq('id', uid)
-      .single()
-    setProfile(data)
-    setReady(true)
+    try {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('*, clinicas(*)')
+        .eq('id', uid)
+        .single()
+      setProfile(data)
+    } catch (e) {
+      console.warn('Perfil não encontrado:', e)
+    } finally {
+      setReady(true)
+    }
   }
 
   async function handleLogout() {
@@ -45,16 +70,26 @@ export default function App() {
     setProfile(null)
   }
 
-  if (!ready) return (
+  if (!ready) return <Spinner />
+
+  if (error) return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: L.bg
+      height: '100dvh', background: L.bg, padding: 24
     }}>
       <div style={{
-        width: 32, height: 32, border: `3px solid ${L.line}`,
-        borderTop: `3px solid ${L.teal}`, borderRadius: '50%',
-        animation: 'spin 0.7s linear infinite'
-      }} />
+        maxWidth: 400, textAlign: 'center',
+        padding: 32, borderRadius: 16,
+        border: `1px solid ${L.redBd}`, background: L.redBg
+      }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+        <div style={{ fontWeight: 700, color: L.red, marginBottom: 8 }}>Erro de conexão</div>
+        <div style={{ fontSize: 13, color: L.t3 }}>{error}</div>
+        <button onClick={() => window.location.reload()} style={{
+          marginTop: 16, padding: '9px 20px', borderRadius: 8,
+          background: L.teal, color: L.white, fontWeight: 600, fontSize: 13
+        }}>Tentar novamente</button>
+      </div>
     </div>
   )
 

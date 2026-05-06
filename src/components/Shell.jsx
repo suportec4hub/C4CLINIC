@@ -210,7 +210,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const pageProps = { user, profile, isAdmin }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', height: '100dvh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
       {/* Desktop Sidebar */}
       {!isMobile && sidebarContent}
 
