@@ -51,14 +51,33 @@ export default function App() {
 
   async function fetchProfile(uid) {
     try {
-      const { data } = await supabase
+      // Busca o perfil do usuário sem join (garante que cargo seja retornado mesmo se RLS bloquear a clínica)
+      const { data: prof, error: profErr } = await supabase
         .from('usuarios')
-        .select('*, clinicas(*)')
+        .select('id, nome, cargo, clinica_id, email, ativo, crm, especialidade, telefone, avatar_url')
         .eq('id', uid)
         .single()
-      setProfile(data)
+
+      if (profErr || !prof) {
+        console.warn('Perfil não encontrado:', profErr)
+        setReady(true)
+        return
+      }
+
+      // Busca a clínica separadamente (pode ser null se RLS bloquear)
+      let clinicaData = null
+      if (prof.clinica_id) {
+        const { data: cl } = await supabase
+          .from('clinicas')
+          .select('id, nome, tipo, plano, is_master, ativo, cidade, estado')
+          .eq('id', prof.clinica_id)
+          .single()
+        clinicaData = cl
+      }
+
+      setProfile({ ...prof, clinicas: clinicaData })
     } catch (e) {
-      console.warn('Perfil não encontrado:', e)
+      console.warn('Erro ao carregar perfil:', e)
     } finally {
       setReady(true)
     }
