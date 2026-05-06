@@ -49,33 +49,12 @@ export default function App() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  async function fetchProfile(uid) {
+  async function fetchProfile(_uid) {
     try {
-      // Busca o perfil do usuário sem join (garante que cargo seja retornado mesmo se RLS bloquear a clínica)
-      const { data: prof, error: profErr } = await supabase
-        .from('usuarios')
-        .select('id, nome, cargo, clinica_id, email, ativo, crm, especialidade, telefone, avatar_url')
-        .eq('id', uid)
-        .single()
-
-      if (profErr || !prof) {
-        console.warn('Perfil não encontrado:', profErr)
-        setReady(true)
-        return
-      }
-
-      // Busca a clínica separadamente (pode ser null se RLS bloquear)
-      let clinicaData = null
-      if (prof.clinica_id) {
-        const { data: cl } = await supabase
-          .from('clinicas')
-          .select('id, nome, tipo, plano, is_master, ativo, cidade, estado')
-          .eq('id', prof.clinica_id)
-          .single()
-        clinicaData = cl
-      }
-
-      setProfile({ ...prof, clinicas: clinicaData })
+      // Usa RPC com SECURITY DEFINER — ignora RLS, sempre retorna o perfil do usuário logado
+      const { data, error } = await supabase.rpc('get_my_profile')
+      if (error) console.warn('Erro ao buscar perfil:', error)
+      setProfile(data ?? null)
     } catch (e) {
       console.warn('Erro ao carregar perfil:', e)
     } finally {
