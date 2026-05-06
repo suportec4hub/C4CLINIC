@@ -17,7 +17,7 @@ ALTER TABLE clinicas
 -- 3. Insere a C4HUB como empresa master
 INSERT INTO clinicas (id, nome, email, telefone, cidade, estado, tipo, is_master, ativo)
 VALUES (
-  'c4hub000-0000-0000-0000-000000000000',
+  'c4000000-0000-0000-0000-000000000000',
   'C4 HUB',
   'suporte.c4hub@gmail.com',
   '(11) 9000-0000',
@@ -114,7 +114,7 @@ CREATE POLICY "financeiro_v2" ON financeiro_lancamentos
 -- 6. Dados demo: clínica cliente de exemplo
 INSERT INTO clinicas (id, nome, email, telefone, cidade, estado, tipo, plano, ativo)
 VALUES (
-  'clinica1-0000-0000-0000-000000000001',
+  'a1000000-0000-0000-0000-000000000001',
   'Clínica São Lucas',
   'contato@saolucas.com',
   '(11) 3100-0000',
@@ -125,7 +125,7 @@ VALUES (
   true
 ),
 (
-  'hospital1-0000-0000-0000-000000000001',
+  'b2000000-0000-0000-0000-000000000002',
   'Hospital Santa Maria',
   'contato@santamaria.com',
   '(11) 3200-0000',

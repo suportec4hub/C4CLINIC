@@ -215,7 +215,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
                   </td>
                   <td style={{ padding: '12px 16px' }}><CargoBadge cargo={u.cargo} /></td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: L.t3 }}>
-                    {u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '—'}
+                    {u.criado_em ? new Date(u.criado_em).toLocaleDateString('pt-BR') : '—'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
