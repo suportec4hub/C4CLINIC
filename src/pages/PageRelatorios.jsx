@@ -17,35 +17,72 @@ function Card({ title, children }) {
   )
 }
 
-export default function PageRelatorios({ profile }) {
+function PeriodSelector({ periodo, setPeriodo }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+      {[
+        { id: 'mes', label: 'Este mês' },
+        { id: 'trimestre', label: 'Trimestre' },
+        { id: 'ano', label: 'Este ano' },
+      ].map(p => (
+        <button key={p.id} onClick={() => setPeriodo(p.id)}
+          style={{
+            padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+            background: periodo === p.id ? L.teal : L.bg,
+            color: periodo === p.id ? L.white : L.t2,
+            border: `1.5px solid ${periodo === p.id ? L.teal : L.line}`
+          }}
+        >{p.label}</button>
+      ))}
+    </div>
+  )
+}
+
+function Spinner() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
+      <div style={{
+        width: 28, height: 28, border: `3px solid ${L.line}`,
+        borderTop: `3px solid ${L.teal}`, borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite'
+      }} />
+    </div>
+  )
+}
+
+function getPeriodRange(periodo) {
+  const hoje = new Date()
+  let inicio, fim
+  if (periodo === 'mes') {
+    inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+    fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
+  } else if (periodo === 'trimestre') {
+    const q = Math.floor(hoje.getMonth() / 3)
+    inicio = new Date(hoje.getFullYear(), q * 3, 1)
+    fim = new Date(hoje.getFullYear(), q * 3 + 3, 0)
+  } else {
+    inicio = new Date(hoje.getFullYear(), 0, 1)
+    fim = new Date(hoje.getFullYear(), 11, 31)
+  }
+  return { isoI: inicio.toISOString(), isoF: fim.toISOString() }
+}
+
+// ── Tab: Visão Geral ──────────────────────────────────────────────────────────
+
+function TabVisaoGeral({ clinicaId }) {
   const [dados, setDados] = useState(null)
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState('mes')
 
-  const clinicaId = profile?.clinica_id
   const ano = new Date().getFullYear()
 
   useEffect(() => { if (clinicaId) load() }, [clinicaId, periodo])
 
   async function load() {
     setLoading(true)
-
-    const hoje = new Date()
-    let inicio, fim
-    if (periodo === 'mes') {
-      inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
-      fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
-    } else if (periodo === 'trimestre') {
-      const q = Math.floor(hoje.getMonth() / 3)
-      inicio = new Date(hoje.getFullYear(), q * 3, 1)
-      fim = new Date(hoje.getFullYear(), q * 3 + 3, 0)
-    } else {
-      inicio = new Date(hoje.getFullYear(), 0, 1)
-      fim = new Date(hoje.getFullYear(), 11, 31)
-    }
-
-    const isoI = inicio.toISOString()
-    const isoF = fim.toISOString()
+    const { isoI, isoF } = getPeriodRange(periodo)
+    const inicio = new Date(isoI)
+    const fim = new Date(isoF)
 
     const [ags, cons, pacs, fin] = await Promise.all([
       supabase.from('agendamentos').select('status, data_hora, convenio_id, convenios(nome)')
@@ -64,12 +101,10 @@ export default function PageRelatorios({ profile }) {
     const pacData = pacs.data || []
     const finData = fin.data || []
 
-    // Status dos agendamentos
     const statusCount = {}
     agData.forEach(a => { statusCount[a.status] = (statusCount[a.status] || 0) + 1 })
     const statusChart = Object.entries(statusCount).map(([name, value]) => ({ name, value }))
 
-    // Por médico
     const medCount = {}
     consData.forEach(c => {
       const nome = c.medicos?.nome || 'Desconhecido'
@@ -79,7 +114,6 @@ export default function PageRelatorios({ profile }) {
       .map(([medico, consultas]) => ({ medico, consultas }))
       .sort((a, b) => b.consultas - a.consultas).slice(0, 6)
 
-    // Financeiro por mês (anual)
     const finMes = MESES.map((mes, i) => {
       const mesData = finData.filter(f => {
         const d = new Date(f.data_vencimento + 'T12:00:00')
@@ -90,12 +124,10 @@ export default function PageRelatorios({ profile }) {
       return { mes, receitas, despesas }
     })
 
-    // Sexo pacientes
     const sexoCount = { Masculino: 0, Feminino: 0, Outro: 0 }
     pacData.forEach(p => { if (p.sexo) sexoCount[p.sexo] = (sexoCount[p.sexo] || 0) + 1 })
     const sexoChart = Object.entries(sexoCount).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }))
 
-    // Totais financeiros
     const totalRec = finData.filter(f => f.tipo === 'receita' && f.status === 'pago').reduce((s, f) => s + Number(f.valor), 0)
     const totalDes = finData.filter(f => f.tipo === 'despesa' && f.status === 'pago').reduce((s, f) => s + Number(f.valor), 0)
     const totalPend = finData.filter(f => f.status === 'pendente').reduce((s, f) => s + Number(f.valor), 0)
@@ -121,34 +153,9 @@ export default function PageRelatorios({ profile }) {
   }
 
   return (
-    <div style={{ padding: '24px 28px' }}>
-      {/* Período */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-        {[
-          { id: 'mes', label: 'Este mês' },
-          { id: 'trimestre', label: 'Trimestre' },
-          { id: 'ano', label: 'Este ano' },
-        ].map(p => (
-          <button key={p.id} onClick={() => setPeriodo(p.id)}
-            style={{
-              padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-              background: periodo === p.id ? L.teal : L.bg,
-              color: periodo === p.id ? L.white : L.t2,
-              border: `1.5px solid ${periodo === p.id ? L.teal : L.line}`
-            }}
-          >{p.label}</button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
-          <div style={{
-            width: 28, height: 28, border: `3px solid ${L.line}`,
-            borderTop: `3px solid ${L.teal}`, borderRadius: '50%',
-            animation: 'spin 0.7s linear infinite'
-          }} />
-        </div>
-      ) : dados && (
+    <>
+      <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} />
+      {loading ? <Spinner /> : dados && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* KPIs */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }} className="grid-cols-4">
@@ -254,6 +261,365 @@ export default function PageRelatorios({ profile }) {
           </Card>
         </div>
       )}
+    </>
+  )
+}
+
+// ── Tab: Por Médico ───────────────────────────────────────────────────────────
+
+function TabPorMedico({ clinicaId }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [periodo, setPeriodo] = useState('mes')
+  const [sortCol, setSortCol] = useState('consultas')
+  const [sortAsc, setSortAsc] = useState(false)
+
+  useEffect(() => { if (clinicaId) load() }, [clinicaId, periodo])
+
+  async function load() {
+    setLoading(true)
+    const { isoI, isoF } = getPeriodRange(periodo)
+
+    const { data } = await supabase
+      .from('consultas')
+      .select('medico_id, medicos(nome, especialidade, repasse_percentual), valor, retorno_em')
+      .eq('clinica_id', clinicaId)
+      .gte('data_hora', isoI)
+      .lte('data_hora', isoF)
+
+    const consultas = data || []
+
+    // Group by medico_id
+    const map = {}
+    consultas.forEach(c => {
+      const mid = c.medico_id
+      if (!map[mid]) {
+        map[mid] = {
+          nome: c.medicos?.nome || 'Desconhecido',
+          especialidade: c.medicos?.especialidade || '—',
+          consultas: 0,
+          receita: 0,
+          retornos: 0,
+        }
+      }
+      map[mid].consultas += 1
+      map[mid].receita += Number(c.valor || 0)
+      if (c.retorno_em) map[mid].retornos += 1
+    })
+
+    const result = Object.values(map).map(r => ({
+      ...r,
+      ticket: r.consultas > 0 ? r.receita / r.consultas : 0,
+      taxaRetorno: r.consultas > 0 ? Math.round((r.retornos / r.consultas) * 100) : 0,
+    }))
+
+    setRows(result)
+    setLoading(false)
+  }
+
+  function toggleSort(col) {
+    if (sortCol === col) setSortAsc(a => !a)
+    else { setSortCol(col); setSortAsc(false) }
+  }
+
+  const sorted = [...rows].sort((a, b) => {
+    const av = a[sortCol], bv = b[sortCol]
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av)
+    return sortAsc ? av - bv : bv - av
+  })
+
+  const maxConsultas = rows.length > 0 ? Math.max(...rows.map(r => r.consultas)) : 0
+
+  const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const thStyle = (col) => ({
+    padding: '10px 14px', textAlign: 'left', fontSize: 11,
+    color: sortCol === col ? L.teal : L.t4,
+    fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.3px',
+    cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+    borderBottom: `2px solid ${L.line}`,
+  })
+
+  const arrow = (col) => sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : ''
+
+  return (
+    <>
+      <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} />
+      {loading ? <Spinner /> : (
+        <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden' }}>
+          {rows.length === 0 ? (
+            <div style={{ padding: '48px 0', textAlign: 'center', color: L.t4, fontSize: 14 }}>
+              Nenhuma consulta registrada no período
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: L.surface }}>
+                    {[
+                      { col: 'nome', label: 'MÉDICO' },
+                      { col: 'especialidade', label: 'ESPECIALIDADE' },
+                      { col: 'consultas', label: 'CONSULTAS' },
+                      { col: 'receita', label: 'RECEITA BRUTA' },
+                      { col: 'ticket', label: 'TICKET MÉDIO' },
+                      { col: 'taxaRetorno', label: 'TAXA RETORNO' },
+                    ].map(({ col, label }) => (
+                      <th key={col} style={thStyle(col)} onClick={() => toggleSort(col)}>
+                        {label}{arrow(col)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((r, i) => {
+                    const isTop = r.consultas === maxConsultas && maxConsultas > 0
+                    return (
+                      <tr key={i} style={{
+                        background: isTop ? L.tealBg : (i % 2 === 0 ? L.bg : L.surface),
+                        borderBottom: `1px solid ${L.line}`,
+                      }}>
+                        <td style={{ padding: '11px 14px', fontWeight: 600, fontSize: 13, color: L.t1 }}>
+                          {isTop && <span style={{ color: L.teal, marginRight: 6, fontSize: 11 }}>★</span>}
+                          {r.nome}
+                        </td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, color: L.t2 }}>{r.especialidade}</td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, color: L.t1, fontWeight: 600, textAlign: 'center' }}>
+                          {r.consultas}
+                        </td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, color: L.green, fontFamily: "'JetBrains Mono', monospace" }}>
+                          {fmt(r.receita)}
+                        </td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, color: L.t2, fontFamily: "'JetBrains Mono', monospace" }}>
+                          {fmt(r.ticket)}
+                        </td>
+                        <td style={{ padding: '11px 14px', fontSize: 13 }}>
+                          <span style={{
+                            padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                            background: r.taxaRetorno >= 30 ? L.greenBg : (r.taxaRetorno >= 10 ? L.yellowBg : L.redBg),
+                            color: r.taxaRetorno >= 30 ? L.green : (r.taxaRetorno >= 10 ? L.yellow : L.red),
+                          }}>
+                            {r.taxaRetorno}%
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Tab: Repasse Médico ───────────────────────────────────────────────────────
+
+function TabRepasse({ clinicaId }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [periodo, setPeriodo] = useState('mes')
+  const [pagos, setPagos] = useState({})
+
+  useEffect(() => { if (clinicaId) load() }, [clinicaId, periodo])
+
+  async function load() {
+    setLoading(true)
+    const { isoI, isoF } = getPeriodRange(periodo)
+
+    const [medRes, consRes] = await Promise.all([
+      supabase.from('medicos')
+        .select('id, nome, crm, repasse_percentual')
+        .eq('clinica_id', clinicaId)
+        .gt('repasse_percentual', 0),
+      supabase.from('consultas')
+        .select('medico_id, valor')
+        .eq('clinica_id', clinicaId)
+        .gte('data_hora', isoI)
+        .lte('data_hora', isoF),
+    ])
+
+    const medicos = medRes.data || []
+    const consultas = consRes.data || []
+
+    // Sum receita per medico
+    const receitaMap = {}
+    consultas.forEach(c => {
+      receitaMap[c.medico_id] = (receitaMap[c.medico_id] || 0) + Number(c.valor || 0)
+    })
+
+    const result = medicos.map(m => ({
+      id: m.id,
+      nome: m.nome,
+      crm: m.crm || '—',
+      repasse_percentual: Number(m.repasse_percentual),
+      receita: receitaMap[m.id] || 0,
+      repasse: ((receitaMap[m.id] || 0) * Number(m.repasse_percentual)) / 100,
+    }))
+
+    setRows(result)
+    setLoading(false)
+  }
+
+  function togglePago(id) {
+    setPagos(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  function exportCSV() {
+    const header = ['Nome', 'CRM', 'Repasse %', 'Receita Bruta', 'Valor Repasse', 'Status']
+    const lines = rows.map(r => [
+      r.nome,
+      r.crm,
+      r.repasse_percentual,
+      r.receita.toFixed(2).replace('.', ','),
+      r.repasse.toFixed(2).replace('.', ','),
+      pagos[r.id] ? 'Pago' : 'Pendente',
+    ])
+    const totalRepasse = rows.reduce((s, r) => s + r.repasse, 0)
+    lines.push(['TOTAL', '', '', '', totalRepasse.toFixed(2).replace('.', ','), ''])
+
+    const csv = [header, ...lines].map(row => row.map(v => `"${v}"`).join(';')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `repasse_medico_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const totalRepasse = rows.reduce((s, r) => s + r.repasse, 0)
+  const totalReceita = rows.reduce((s, r) => s + r.receita, 0)
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+        <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} />
+        {!loading && rows.length > 0 && (
+          <button onClick={exportCSV} style={{
+            padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+            background: L.tealBg, color: L.teal, border: `1.5px solid ${L.teal}20`,
+            marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            ↓ Exportar CSV
+          </button>
+        )}
+      </div>
+
+      {loading ? <Spinner /> : rows.length === 0 ? (
+        <div style={{
+          background: L.tealBg, border: `1px solid ${L.teal}30`, borderRadius: 14,
+          padding: '32px 24px', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: L.teal, marginBottom: 8 }}>
+            Nenhum médico com repasse configurado
+          </div>
+          <div style={{ fontSize: 13, color: L.t3 }}>
+            Acesse a aba Médicos e defina o percentual de repasse para cada profissional.
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: L.surface }}>
+                  {['MÉDICO', 'CRM', 'REPASSE %', 'RECEITA BRUTA', 'VALOR REPASSE', 'STATUS'].map(h => (
+                    <th key={h} style={{
+                      padding: '10px 14px', textAlign: 'left', fontSize: 11,
+                      color: L.t4, fontFamily: "'JetBrains Mono', monospace",
+                      letterSpacing: '0.3px', whiteSpace: 'nowrap',
+                      borderBottom: `2px solid ${L.line}`,
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.id} style={{
+                    background: i % 2 === 0 ? L.bg : L.surface,
+                    borderBottom: `1px solid ${L.line}`,
+                  }}>
+                    <td style={{ padding: '11px 14px', fontWeight: 600, fontSize: 13, color: L.t1 }}>{r.nome}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12, color: L.t3, fontFamily: "'JetBrains Mono', monospace" }}>{r.crm}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, color: L.teal, fontWeight: 600 }}>{r.repasse_percentual}%</td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, color: L.t2, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.receita)}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, color: L.green, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.repasse)}</td>
+                    <td style={{ padding: '11px 14px' }}>
+                      <button onClick={() => togglePago(r.id)} style={{
+                        padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                        background: pagos[r.id] ? L.greenBg : L.yellowBg,
+                        color: pagos[r.id] ? L.green : L.yellow,
+                        border: `1.5px solid ${pagos[r.id] ? L.greenBd : L.yellowBd}`,
+                        cursor: 'pointer',
+                      }}>
+                        {pagos[r.id] ? 'Pago' : 'Pendente'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {/* Total row */}
+                <tr style={{ background: L.tealBg, borderTop: `2px solid ${L.teal}30` }}>
+                  <td colSpan={3} style={{ padding: '12px 14px', fontWeight: 700, fontSize: 13, color: L.teal }}>
+                    TOTAL
+                  </td>
+                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: L.t1, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {fmt(totalReceita)}
+                  </td>
+                  <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: L.teal, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {fmt(totalRepasse)}
+                  </td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+const TABS = [
+  { id: 'geral', label: 'Visão Geral' },
+  { id: 'pormedico', label: 'Por Médico' },
+  { id: 'repasse', label: 'Repasse Médico' },
+]
+
+export default function PageRelatorios({ profile }) {
+  const [tab, setTab] = useState('geral')
+  const clinicaId = profile?.clinica_id
+
+  return (
+    <div style={{ padding: '24px 28px' }}>
+      {/* Tab bar */}
+      <div style={{
+        display: 'flex', gap: 4, marginBottom: 28,
+        borderBottom: `2px solid ${L.line}`, paddingBottom: 0,
+      }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            padding: '8px 18px', fontSize: 13, fontWeight: 600,
+            borderRadius: '8px 8px 0 0',
+            background: tab === t.id ? L.teal : 'transparent',
+            color: tab === t.id ? L.white : L.t3,
+            border: 'none',
+            borderBottom: tab === t.id ? `2px solid ${L.teal}` : '2px solid transparent',
+            marginBottom: -2,
+            transition: 'all 0.15s',
+          }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'geral' && <TabVisaoGeral clinicaId={clinicaId} />}
+      {tab === 'pormedico' && <TabPorMedico clinicaId={clinicaId} />}
+      {tab === 'repasse' && <TabRepasse clinicaId={clinicaId} />}
     </div>
   )
 }

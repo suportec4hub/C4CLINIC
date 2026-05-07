@@ -237,6 +237,17 @@ export default function PageMedicos({ profile }) {
                 </select>
               </Field>
             </div>
+            <Field label="REPASSE (%)">
+              <input style={inp} type="number" min={0} max={100} step={0.5}
+                value={form.repasse_percentual ?? ''} placeholder="Ex: 40"
+                onChange={e => setForm({ ...form, repasse_percentual: e.target.value === '' ? null : Number(e.target.value) })}
+                onFocus={e => e.target.style.borderColor = L.teal}
+                onBlur={e => e.target.style.borderColor = L.line}
+              />
+              <div style={{ fontSize: 11, color: L.t4, marginTop: 4 }}>
+                Percentual da consulta repassado ao médico
+              </div>
+            </Field>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="TELEFONE">
                 <input style={inp} value={form.telefone || ''} placeholder="(00) 00000-0000"
