@@ -252,6 +252,20 @@ export default function PageAgenda({ profile }) {
     load()
   }
 
+  function abrirWhatsApp(ag) {
+    const clinicaNome = profile?.clinicas?.nome || 'C4CLINIC'
+    const pacienteNome = ag.pacientes?.nome || 'Paciente'
+    const medicoNome = ag.medicos?.nome || '—'
+    const dt = new Date(ag.data_hora)
+    const dataFmt = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const horaFmt = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    const texto = `Olá, *${pacienteNome}*! 👋\n\nLembramos do seu agendamento na *${clinicaNome}*:\n\n📅 *Data:* ${dataFmt}\n⏰ *Horário:* ${horaFmt}\n👨‍⚕️ *Médico(a):* Dr(a). ${medicoNome}\n\nPor favor, confirme sua presença respondendo *SIM* ou entre em contato para reagendar.\n\nObrigado! 🏥`
+    setWhatsappTexto(texto)
+    setWhatsappAg(ag)
+    setWhatsappCopiado(false)
+    setModal('whatsapp')
+  }
+
   // Lista de espera actions
   async function adicionarEspera() {
     setSavingEspera(true)
@@ -459,24 +473,32 @@ export default function PageAgenda({ profile }) {
               agDoDay.map(ag => (
                 <div key={ag.id} style={{
                   padding: '12px 16px', borderBottom: `1px solid ${L.lineSoft}`,
-                  cursor: 'pointer', transition: 'background 0.12s'
+                  transition: 'background 0.12s'
                 }}
                   onMouseEnter={e => e.currentTarget.style.background = L.hover}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  onClick={() => {
-                    setForm({ ...ag })
-                    setSelecionado(ag)
-                    setModal('detalhe')
-                  }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{
                       fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
-                      color: L.teal, fontWeight: 600
-                    }}>{fmtHora(ag.data_hora)}</span>
-                    <StatusBadge status={ag.status} small />
+                      color: L.teal, fontWeight: 600, cursor: 'pointer'
+                    }} onClick={() => { setForm({ ...ag }); setSelecionado(ag); setModal('detalhe') }}>{fmtHora(ag.data_hora)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); abrirWhatsApp(ag) }}
+                        title="Gerar confirmação WhatsApp"
+                        style={{
+                          background: '#25D36620', color: '#25D366', border: 'none',
+                          borderRadius: 6, padding: '2px 6px', fontSize: 14, cursor: 'pointer',
+                          lineHeight: 1
+                        }}
+                      >💬</button>
+                      <StatusBadge status={ag.status} small />
+                    </div>
                   </div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: L.t1 }}>{ag.pacientes?.nome}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: L.t1, cursor: 'pointer' }}
+                    onClick={() => { setForm({ ...ag }); setSelecionado(ag); setModal('detalhe') }}
+                  >{ag.pacientes?.nome}</div>
                   <div style={{ fontSize: 12, color: L.t3, marginTop: 2 }}>
                     Dr(a). {ag.medicos?.nome} · {ag.tipo}
                   </div>
@@ -679,6 +701,60 @@ export default function PageAgenda({ profile }) {
                 onBlur={e => e.target.style.borderColor = L.line}
               />
             </Field>
+
+            {/* Recorrência */}
+            <div style={{ border: `1.5px solid ${recorrente ? L.teal : L.line}`, borderRadius: 10, padding: '12px 14px', transition: 'border-color 0.2s' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+                <div
+                  onClick={() => setRecorrente(r => !r)}
+                  style={{
+                    width: 36, height: 20, borderRadius: 10,
+                    background: recorrente ? L.teal : L.line,
+                    position: 'relative', transition: 'background 0.2s', flexShrink: 0
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 2, left: recorrente ? 18 : 2, width: 16, height: 16,
+                    borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                  }} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: L.t1 }}>Criar agendamento de retorno</span>
+              </label>
+
+              {recorrente && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11, color: L.t4, marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>RETORNO EM X DIAS</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                    {[7, 14, 21, 30, 60, 90].map(d => (
+                      <button key={d} onClick={() => setRetornoDias(d)} style={{
+                        padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                        background: retornoDias === d ? L.teal : L.tealBg,
+                        color: retornoDias === d ? '#fff' : L.teal,
+                        border: retornoDias === d ? `1.5px solid ${L.teal}` : '1.5px solid transparent',
+                        cursor: 'pointer', transition: 'all 0.15s'
+                      }}>{d} dias</button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, color: L.t3 }}>Ou personalizado:</span>
+                    <input
+                      type="number" min={1} max={365}
+                      value={retornoDias}
+                      onChange={e => setRetornoDias(Number(e.target.value))}
+                      style={{ ...inp, width: 80, textAlign: 'center' }}
+                      onFocus={e => e.target.style.borderColor = L.teal}
+                      onBlur={e => e.target.style.borderColor = L.line}
+                    />
+                    <span style={{ fontSize: 12, color: L.t3 }}>dias</span>
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: L.teal, fontStyle: 'italic' }}>
+                    Retorno será agendado para {retornoDias} dias após a consulta, com tipo "retorno".
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setModal(null)} style={{
                 flex: 1, padding: '10px 0', borderRadius: 8, background: L.hover, color: L.t2, fontSize: 13
@@ -686,7 +762,7 @@ export default function PageAgenda({ profile }) {
               <button onClick={salvar} disabled={saving || !form.paciente_id || !form.medico_id} style={{
                 flex: 2, padding: '10px 0', borderRadius: 8, background: L.teal,
                 color: L.white, fontWeight: 600, fontSize: 13, opacity: saving ? 0.7 : 1
-              }}>{saving ? 'Salvando...' : 'Agendar'}</button>
+              }}>{saving ? 'Salvando...' : recorrente ? 'Agendar + Retorno' : 'Agendar'}</button>
             </div>
           </div>
         </Modal>
@@ -797,6 +873,45 @@ export default function PageAgenda({ profile }) {
                 flex: 2, padding: '10px 0', borderRadius: 8, background: L.teal,
                 color: L.white, fontWeight: 600, fontSize: 13, opacity: savingEspera ? 0.7 : 1
               }}>{savingEspera ? 'Salvando...' : 'Adicionar'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal WhatsApp confirmação */}
+      {modal === 'whatsapp' && whatsappAg && (
+        <Modal title="Confirmação via WhatsApp" onClose={() => { setModal(null); setWhatsappAg(null) }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '10px 14px', background: '#25D36615', borderRadius: 10, fontSize: 13, color: L.t2 }}>
+              Copie o texto abaixo e envie pelo WhatsApp ao paciente. Você pode editar antes de copiar.
+            </div>
+            <textarea
+              value={whatsappTexto}
+              onChange={e => setWhatsappTexto(e.target.value)}
+              style={{
+                ...inp, minHeight: 220, resize: 'vertical', fontFamily: "'Instrument Sans', sans-serif",
+                fontSize: 13, lineHeight: 1.6
+              }}
+              onFocus={e => e.target.style.borderColor = '#25D366'}
+              onBlur={e => e.target.style.borderColor = L.line}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { setModal(null); setWhatsappAg(null) }} style={{
+                flex: 1, padding: '10px 0', borderRadius: 8, background: L.hover, color: L.t2, fontSize: 13
+              }}>Fechar</button>
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(whatsappTexto)
+                  setWhatsappCopiado(true)
+                  setTimeout(() => setWhatsappCopiado(false), 2500)
+                }}
+                style={{
+                  flex: 2, padding: '10px 0', borderRadius: 8,
+                  background: whatsappCopiado ? '#25D366' : '#25D36620',
+                  color: whatsappCopiado ? '#fff' : '#25D366',
+                  fontWeight: 600, fontSize: 13, transition: 'all 0.2s'
+                }}
+              >{whatsappCopiado ? '✓ Copiado!' : '📋 Copiar Texto'}</button>
             </div>
           </div>
         </Modal>

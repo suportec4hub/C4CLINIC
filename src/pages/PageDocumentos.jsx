@@ -64,6 +64,87 @@ const TIPOS = [
   { value: 'declaracao', label: 'Declarações' },
 ]
 
+const TEMPLATES = {
+  receita: [
+    {
+      label: 'Antibiótico (5 dias)',
+      conteudo: 'Amoxicilina 500mg\n1 comprimido a cada 8 horas por 5 dias\n\nTomar com água, de preferência às refeições.',
+    },
+    {
+      label: 'Anti-inflamatório',
+      conteudo: 'Ibuprofeno 600mg\n1 comprimido a cada 8 horas por 5 dias\n\nTomar após as refeições. Não utilizar em jejum.',
+    },
+    {
+      label: 'Antihipertensivo',
+      conteudo: 'Losartana Potássica 50mg\n1 comprimido ao dia (pela manhã)\n\nUso contínuo. Monitorar pressão arterial regularmente.',
+    },
+    {
+      label: 'Ansiolítico',
+      conteudo: 'Clonazepam 0,5mg\n1 comprimido à noite, ao dormir\n\nUso controlado. Não interromper abruptamente. Evitar ingestão de álcool.',
+    },
+  ],
+  atestado: [
+    {
+      label: '1 dia de repouso',
+      conteudo: 'Atestamos para fins de comprovação junto ao empregador que o(a) paciente acima identificado(a) necessitou de repouso médico pelo período de 01 (um) dia, podendo retornar às atividades normais a partir de amanhã.',
+    },
+    {
+      label: '3 dias de repouso',
+      conteudo: 'Atestamos para fins de comprovação junto ao empregador que o(a) paciente acima identificado(a) necessitou de repouso médico pelo período de 03 (três) dias, podendo retornar às atividades normais após esse período.',
+    },
+    {
+      label: '7 dias de afastamento',
+      conteudo: 'Atestamos para fins de comprovação junto ao empregador que o(a) paciente acima identificado(a) necessitou de afastamento de suas atividades laborais pelo período de 07 (sete) dias, a contar da data acima, por motivo de saúde.',
+    },
+    {
+      label: 'Acompanhante',
+      conteudo: 'Atestamos que o(a) paciente acima identificado(a) necessitou de acompanhante para comparecer a esta consulta médica, sendo necessária a presença de familiar ou responsável durante o atendimento.',
+    },
+  ],
+  declaracao: [
+    {
+      label: 'Comparecimento',
+      conteudo: 'Declaramos que o(a) paciente acima identificado(a) compareceu a esta clínica para consulta médica na data indicada neste documento, permanecendo em atendimento pelo tempo necessário para sua avaliação clínica.',
+    },
+    {
+      label: 'Acompanhante de menor',
+      conteudo: 'Declaramos que o(a) Sr(a). ________________________, portador(a) do CPF nº _________________, compareceu a esta clínica como acompanhante do(a) menor ________________________, que realizou consulta médica na data indicada neste documento.',
+    },
+  ],
+  solicitacao_exame: [
+    {
+      label: 'Hemograma completo',
+      conteudo: '- Hemograma completo\n- Glicemia em jejum\n- Ureia e creatinina\n- TGO e TGP\n- TSH e T4 livre',
+    },
+    {
+      label: 'Lipidograma + glicemia',
+      conteudo: '- Colesterol total e frações (HDL, LDL, VLDL)\n- Triglicerídeos\n- Glicemia em jejum\n- Hemoglobina glicada (HbA1c)',
+    },
+    {
+      label: 'ECG + ecocardiograma',
+      conteudo: '- Eletrocardiograma (ECG) em repouso\n- Ecocardiograma transtorácico com Doppler\n\nIndicação: avaliação cardiovascular',
+    },
+    {
+      label: 'RX tórax PA',
+      conteudo: '- Radiografia de tórax em PA (posteroanterior) e perfil\n\nIndicação: avaliação pulmonar e cardíaca',
+    },
+  ],
+  encaminhamento: [
+    {
+      label: 'Encaminhamento cardiologia',
+      conteudo: 'Encaminho o(a) paciente acima identificado(a) ao especialista em Cardiologia para avaliação e conduta.\n\nMotivo: ________________________\n\nHipótese diagnóstica: ________________________\n\nExames realizados: ________________________',
+    },
+    {
+      label: 'Encaminhamento ortopedia',
+      conteudo: 'Encaminho o(a) paciente acima identificado(a) ao especialista em Ortopedia e Traumatologia para avaliação e conduta.\n\nMotivo: ________________________\n\nHipótese diagnóstica: ________________________\n\nExames realizados: ________________________',
+    },
+    {
+      label: 'Encaminhamento neurologia',
+      conteudo: 'Encaminho o(a) paciente acima identificado(a) ao especialista em Neurologia para avaliação e conduta.\n\nMotivo: ________________________\n\nHipótese diagnóstica: ________________________\n\nExames realizados: ________________________',
+    },
+  ],
+}
+
 const TIPO_LABELS = {
   receita: { label: 'Receita', color: L.blue, bg: L.blueBg },
   atestado: { label: 'Atestado', color: L.green, bg: L.greenBg },
@@ -403,6 +484,30 @@ export default function PageDocumentos({ profile }) {
                   placeholder="Número de dias"
                   onChange={e => setForm({ ...form, dias_afastamento: e.target.value })} onFocus={focus} onBlur={blur} />
               </Field>
+            )}
+
+            {TEMPLATES[form.tipo] && TEMPLATES[form.tipo].length > 0 && (
+              <div>
+                <label style={{
+                  display: 'block', fontSize: 11, color: L.t4, marginBottom: 6,
+                  fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.3px'
+                }}>TEMPLATES RÁPIDOS</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {TEMPLATES[form.tipo].map(tpl => (
+                    <button
+                      key={tpl.label}
+                      onClick={() => setForm({ ...form, conteudo: tpl.conteudo })}
+                      style={{
+                        padding: '4px 10px', borderRadius: 20, background: L.tealBg,
+                        color: L.teal, fontSize: 11, fontWeight: 500,
+                        border: 'none', cursor: 'pointer', transition: 'opacity 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+                      onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                    >{tpl.label}</button>
+                  ))}
+                </div>
+              </div>
             )}
 
             <Field label="CONTEÚDO DO DOCUMENTO">
