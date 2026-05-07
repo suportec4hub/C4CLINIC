@@ -16,6 +16,7 @@ import PageTodosUsuarios from '../pages/PageTodosUsuarios.jsx'
 import PageTriagem from '../pages/PageTriagem.jsx'
 import PageDocumentos from '../pages/PageDocumentos.jsx'
 import PageEstoque from '../pages/PageEstoque.jsx'
+import PageFluxo from '../pages/PageFluxo.jsx'
 
 export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const [page, setPage] = useState('dashboard')
@@ -302,6 +303,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'triagem'        && <PageTriagem {...pageProps} />}
             {page === 'documentos'     && <PageDocumentos {...pageProps} />}
             {page === 'estoque'        && <PageEstoque {...pageProps} />}
+            {page === 'fluxo'          && <PageFluxo {...pageProps} />}
           </div>
         </main>
       </div>

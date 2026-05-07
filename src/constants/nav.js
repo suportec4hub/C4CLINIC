@@ -44,6 +44,7 @@ export const NAV_ITEMS = [
     items: [
       { id: 'pacientes',  label: 'Pacientes',  icon: '◈' },
       { id: 'triagem',    label: 'Triagem',    icon: '♡' },
+      { id: 'fluxo',     label: 'Fluxo de Atendimento', icon: '⟳' },
       { id: 'agenda',     label: 'Agenda',     icon: '◷' },
       { id: 'consultas',  label: 'Consultas',  icon: '✦' },
       { id: 'documentos', label: 'Documentos', icon: '◫' },
@@ -92,4 +93,5 @@ export const PAGE_TITLES = {
   configuracoes:  'Configurações',
   clientes:       'Clínicas & Hospitais',
   todos_usuarios: 'Todos os Usuários',
+  fluxo:          'Painel de Fluxo',
 }
