@@ -3,27 +3,39 @@ import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
-function KpiCard({ icon, label, value, sub, color = L.teal, bg = L.tealBg }) {
+function KpiCard({ icon, label, value, sub, color = L.teal, bg = L.tealBg, trend }) {
   return (
     <div style={{
       background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14,
+      borderLeft: `4px solid ${color}`,
       padding: '20px 22px', display: 'flex', alignItems: 'flex-start', gap: 14,
-      transition: 'box-shadow 0.15s'
+      transition: 'box-shadow 0.15s',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
     }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'}
     >
       <div style={{
         width: 44, height: 44, borderRadius: 12, background: bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 22, flexShrink: 0
       }}>{icon}</div>
-      <div>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, color: L.t3, marginBottom: 4 }}>{label}</div>
-        <div style={{
-          fontFamily: "'Outfit', sans-serif", fontWeight: 700,
-          fontSize: 26, color: L.t1, lineHeight: 1
-        }}>{value}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <div style={{
+            fontFamily: "'Outfit', sans-serif", fontWeight: 700,
+            fontSize: 26, color: L.t1, lineHeight: 1
+          }}>{value}</div>
+          {trend !== undefined && (
+            <span style={{
+              fontSize: 12, fontWeight: 600,
+              color: trend >= 0 ? L.green : L.red,
+            }}>
+              {trend >= 0 ? '▲' : '▼'}
+            </span>
+          )}
+        </div>
         {sub && <div style={{ fontSize: 12, color: L.t3, marginTop: 4 }}>{sub}</div>}
       </div>
     </div>
@@ -162,6 +174,7 @@ function DashboardClinica({ profile }) {
   const [kpis, setKpis] = useState({ hoje: 0, pacientes: 0, receita: 0, novosMes: 0 })
   const [agendamentosHoje, setAgendamentosHoje] = useState([])
   const [chartData, setChartData] = useState([])
+  const [aniversariantes, setAniversariantes] = useState([])
   const [loading, setLoading] = useState(true)
 
   const clinicaId = profile?.clinica_id
@@ -177,7 +190,9 @@ function DashboardClinica({ profile }) {
       const hoje = new Date().toISOString().split('T')[0]
       const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
-      const [agHoje, totalPac, receitaMes, novosMes] = await Promise.all([
+      const mesAtual = new Date().getMonth() + 1
+
+      const [agHoje, totalPac, receitaMes, novosMes, pacAniversario] = await Promise.all([
         supabase.from('agendamentos')
           .select('*, pacientes(nome), medicos(nome)')
           .eq('clinica_id', clinicaId)
@@ -198,6 +213,12 @@ function DashboardClinica({ profile }) {
           .select('id', { count: 'exact', head: true })
           .eq('clinica_id', clinicaId)
           .gte('criado_em', inicioMes),
+        supabase.from('pacientes')
+          .select('id, nome, data_nascimento')
+          .eq('clinica_id', clinicaId)
+          .eq('ativo', true)
+          .not('data_nascimento', 'is', null)
+          .order('data_nascimento'),
       ])
 
       const receita = (receitaMes.data || []).reduce((s, r) => s + Number(r.valor), 0)
@@ -208,6 +229,18 @@ function DashboardClinica({ profile }) {
         receita,
         novosMes: novosMes.count || 0,
       })
+
+      // Filter birthday patients by current month client-side (avoids needing a SQL function)
+      const anivList = (pacAniversario.data || []).filter(p => {
+        if (!p.data_nascimento) return false
+        const mes = new Date(p.data_nascimento + 'T12:00:00').getMonth() + 1
+        return mes === mesAtual
+      }).sort((a, b) => {
+        const dA = new Date(a.data_nascimento + 'T12:00:00').getDate()
+        const dB = new Date(b.data_nascimento + 'T12:00:00').getDate()
+        return dA - dB
+      })
+      setAniversariantes(anivList)
 
       // Gráfico: últimos 7 dias
       const dias = []
@@ -244,6 +277,10 @@ function DashboardClinica({ profile }) {
 
   const fmt = v => v?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) ?? 'R$ 0,00'
   const fmtHora = dt => new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const fmtNascimento = dt => {
+    const d = new Date(dt + 'T12:00:00')
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  }
 
   if (loading) return <Spinner />
 
@@ -270,7 +307,7 @@ function DashboardClinica({ profile }) {
           <div style={{ fontWeight: 600, fontSize: 14, color: L.t1, marginBottom: 16 }}>
             Consultas — últimos 7 dias
           </div>
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="tealGrad" x1="0" y1="0" x2="0" y2="1">
@@ -292,7 +329,7 @@ function DashboardClinica({ profile }) {
           <div style={{ fontWeight: 600, fontSize: 14, color: L.t1, marginBottom: 16 }}>
             Receita — últimos 7 dias
           </div>
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={L.line} vertical={false} />
               <XAxis dataKey="dia" tick={{ fontSize: 11, fill: L.t4 }} axisLine={false} tickLine={false} />
@@ -305,7 +342,7 @@ function DashboardClinica({ profile }) {
         </div>
       </div>
 
-      <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, padding: 20 }}>
+      <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
         <div style={{ fontWeight: 600, fontSize: 14, color: L.t1, marginBottom: 16 }}>
           Agenda de hoje ({agendamentosHoje.length})
         </div>
@@ -340,6 +377,54 @@ function DashboardClinica({ profile }) {
                 <StatusBadge status={ag.status} />
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Aniversariantes do mês */}
+      <div style={{
+        background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, padding: 20,
+        borderLeft: `4px solid ${L.yellow}`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span style={{ fontSize: 18 }}>🎂</span>
+          <div style={{ fontWeight: 600, fontSize: 14, color: L.t1 }}>
+            Aniversariantes do mês
+          </div>
+          <span style={{
+            marginLeft: 4, padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+            background: L.yellowBg, color: L.yellow
+          }}>{aniversariantes.length}</span>
+        </div>
+        {aniversariantes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: L.t4, fontSize: 13 }}>
+            Nenhum aniversariante este mês
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {aniversariantes.map(p => {
+              const hoje = new Date()
+              const dia = new Date(p.data_nascimento + 'T12:00:00').getDate()
+              const isHoje = dia === hoje.getDate()
+              return (
+                <div key={p.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px', borderRadius: 20,
+                  background: isHoje ? L.yellowBg : L.surface,
+                  border: `1px solid ${isHoje ? L.yellowBd : L.line}`,
+                  fontSize: 12, color: isHoje ? L.yellow : L.t2,
+                  fontWeight: isHoje ? 600 : 400,
+                  boxShadow: isHoje ? '0 2px 8px rgba(202,138,4,0.15)' : 'none',
+                }}>
+                  {isHoje && <span style={{ fontSize: 13 }}>🎉</span>}
+                  <span style={{ fontWeight: 500, color: isHoje ? L.t1 : L.t2 }}>{p.nome}</span>
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                    color: isHoje ? L.yellow : L.t4
+                  }}>{fmtNascimento(p.data_nascimento)}</span>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

@@ -139,24 +139,32 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {group.items.filter(canSee).map(item => {
               const active = page === item.id
               return (
-                <button key={item.id} onClick={() => nav(item.id)}
+                <div key={item.id} style={{
+                  padding: collapsed && !isMobile ? '3px 0' : '3px 4px',
+                }}>
+                <button onClick={() => nav(item.id)}
                   title={collapsed && !isMobile ? item.label : undefined}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center',
-                    gap: 10, padding: collapsed && !isMobile ? '10px 0' : '9px 16px',
+                    gap: 10, padding: collapsed && !isMobile ? '9px 0' : '9px 12px',
                     justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
                     background: active ? L.tealBg : 'transparent',
                     color: active ? L.teal : L.t2, fontWeight: active ? 600 : 400,
-                    fontSize: 13, borderRadius: 0,
+                    fontSize: 13, borderRadius: active ? 8 : 8,
                     borderLeft: active ? `3px solid ${L.teal}` : '3px solid transparent',
                     transition: 'all 0.15s',
                   }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.background = L.hover }}
                   onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                 >
-                  <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                  <span style={{
+                    fontSize: 17, flexShrink: 0,
+                    filter: active ? 'none' : 'grayscale(20%)',
+                    opacity: active ? 1 : 0.75,
+                  }}>{item.icon}</span>
                   {(!collapsed || isMobile) && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
                 </button>
+                </div>
               )
             })}
           </div>
@@ -168,12 +176,15 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
         {(!collapsed || isMobile) ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 34, height: 34, borderRadius: '50%', background: L.tealBg,
-              border: `1.5px solid ${L.teal}`, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 16, flexShrink: 0,
-              color: L.teal, fontWeight: 700
+              width: 34, height: 34, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #0d6e6e, #0f8585)',
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: 13, flexShrink: 0,
+              color: '#ffffff', fontWeight: 700, letterSpacing: '-0.5px',
+              boxShadow: '0 2px 6px rgba(13,110,110,0.25)',
+              fontFamily: "'Outfit', sans-serif",
             }}>
-              {profile?.nome?.[0]?.toUpperCase() || '?'}
+              {profile?.nome ? profile.nome.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'}
             </div>
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: L.t1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -229,7 +240,9 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <header style={{
-          height: 56, background: L.bg, borderBottom: `1px solid ${L.line}`,
+          height: 56, background: L.bg,
+          borderBottom: `1px solid ${L.line}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0
         }}>
           {isMobile && (
@@ -241,7 +254,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
           )}
           <div style={{
             fontFamily: "'Outfit', sans-serif", fontWeight: 700,
-            fontSize: 17, color: L.t1, flex: 1
+            fontSize: 18, color: L.t1, flex: 1, letterSpacing: '-0.2px'
           }}>{PAGE_TITLES[page] || page}</div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: L.t3 }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
 
@@ -14,6 +14,13 @@ const STATUS_MAP = {
   falta:          { label: 'Falta',          color: L.copper, bg: L.surface },
 }
 
+const PRIORIDADE_MAP = {
+  urgente: { label: 'Urgente', color: L.red,    bg: L.redBg },
+  alta:    { label: 'Alta',    color: L.orange, bg: L.orangeBg },
+  normal:  { label: 'Normal',  color: L.blue,   bg: L.blueBg },
+  baixa:   { label: 'Baixa',   color: L.t3,     bg: L.surface },
+}
+
 function StatusBadge({ status, onClick, small }) {
   const s = STATUS_MAP[status] || { label: status, color: L.t3, bg: L.surface }
   return (
@@ -26,6 +33,16 @@ function StatusBadge({ status, onClick, small }) {
         cursor: onClick ? 'pointer' : 'default'
       }}
     >{s.label}</span>
+  )
+}
+
+function PrioridadeBadge({ prioridade }) {
+  const p = PRIORIDADE_MAP[prioridade] || { label: prioridade, color: L.t3, bg: L.surface }
+  return (
+    <span style={{
+      padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700,
+      color: p.color, background: p.bg
+    }}>{p.label}</span>
   )
 }
 
@@ -87,6 +104,14 @@ function getFirstDayOfMonth(year, month) {
   return new Date(year, month, 1).getDay()
 }
 
+function tempoEspera(criadoEm) {
+  const diff = Math.floor((Date.now() - new Date(criadoEm).getTime()) / 1000 / 60)
+  if (diff < 60) return `há ${diff} min`
+  const h = Math.floor(diff / 60)
+  const m = diff % 60
+  return m > 0 ? `há ${h}h ${m}min` : `há ${h}h`
+}
+
 export default function PageAgenda({ profile }) {
   const [agendamentos, setAgendamentos] = useState([])
   const [pacientes, setPacientes] = useState([])
@@ -97,7 +122,15 @@ export default function PageAgenda({ profile }) {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [selecionado, setSelecionado] = useState(null)
-  const [view, setView] = useState('semana') // semana | dia | lista
+
+  // Lista de espera & bloqueios
+  const [listaEspera, setListaEspera] = useState([])
+  const [bloqueios, setBloqueios] = useState([])
+  const [sideTab, setSideTab] = useState('espera') // 'espera' | 'bloqueios'
+  const [formEspera, setFormEspera] = useState({})
+  const [formBloqueio, setFormBloqueio] = useState({})
+  const [savingEspera, setSavingEspera] = useState(false)
+  const [savingBloqueio, setSavingBloqueio] = useState(false)
 
   const hoje = new Date()
   const [dataSel, setDataSel] = useState(hoje.toISOString().split('T')[0])
@@ -106,6 +139,7 @@ export default function PageAgenda({ profile }) {
   const clinicaId = profile?.clinica_id
 
   useEffect(() => { if (clinicaId) load() }, [clinicaId, mesAno])
+  useEffect(() => { if (clinicaId) loadSidePanel() }, [clinicaId])
 
   async function load() {
     setLoading(true)
@@ -128,6 +162,33 @@ export default function PageAgenda({ profile }) {
     setMedicos(meds.data || [])
     setConvenios(convs.data || [])
     setLoading(false)
+  }
+
+  async function loadSidePanel() {
+    const agora = new Date().toISOString()
+    const [espera, bloqs] = await Promise.all([
+      supabase.from('lista_espera')
+        .select('*, pacientes(nome), medicos(nome)')
+        .eq('clinica_id', clinicaId)
+        .eq('status', 'aguardando')
+        .order('prioridade')
+        .order('criado_em'),
+      supabase.from('agenda_bloqueios')
+        .select('*, medicos(nome)')
+        .eq('clinica_id', clinicaId)
+        .gte('data_fim', agora)
+        .order('data_inicio'),
+    ])
+    // Sort espera: urgente first
+    const ordemPrioridade = { urgente: 0, alta: 1, normal: 2, baixa: 3 }
+    const sorted = (espera.data || []).slice().sort((a, b) => {
+      const pa = ordemPrioridade[a.prioridade] ?? 99
+      const pb = ordemPrioridade[b.prioridade] ?? 99
+      if (pa !== pb) return pa - pb
+      return new Date(a.criado_em) - new Date(b.criado_em)
+    })
+    setListaEspera(sorted)
+    setBloqueios(bloqs.data || [])
   }
 
   function abrirNovo(data) {
@@ -167,6 +228,56 @@ export default function PageAgenda({ profile }) {
     load()
   }
 
+  // Lista de espera actions
+  async function adicionarEspera() {
+    setSavingEspera(true)
+    await supabase.from('lista_espera').insert({
+      clinica_id: clinicaId,
+      paciente_id: formEspera.paciente_id,
+      medico_id: formEspera.medico_id || null,
+      tipo: formEspera.tipo || 'consulta',
+      prioridade: formEspera.prioridade || 'normal',
+      observacoes: formEspera.observacoes || null,
+      status: 'aguardando',
+    })
+    setSavingEspera(false)
+    setModal(null)
+    setFormEspera({})
+    loadSidePanel()
+  }
+
+  async function agendarDaEspera(id) {
+    await supabase.from('lista_espera').update({ status: 'agendado' }).eq('id', id)
+    loadSidePanel()
+  }
+
+  async function removerDaEspera(id) {
+    await supabase.from('lista_espera').update({ status: 'cancelado' }).eq('id', id)
+    loadSidePanel()
+  }
+
+  // Bloqueios actions
+  async function salvarBloqueio() {
+    setSavingBloqueio(true)
+    await supabase.from('agenda_bloqueios').insert({
+      clinica_id: clinicaId,
+      medico_id: formBloqueio.medico_id || null,
+      data_inicio: formBloqueio.data_inicio,
+      data_fim: formBloqueio.data_fim,
+      motivo: formBloqueio.motivo || null,
+    })
+    setSavingBloqueio(false)
+    setModal(null)
+    setFormBloqueio({})
+    loadSidePanel()
+  }
+
+  async function excluirBloqueio(id) {
+    if (!confirm('Excluir este bloqueio?')) return
+    await supabase.from('agenda_bloqueios').delete().eq('id', id)
+    loadSidePanel()
+  }
+
   const agDoDia = (dia) => agendamentos.filter(ag => {
     const d = new Date(ag.data_hora)
     return d.getFullYear() === mesAno.ano &&
@@ -179,6 +290,7 @@ export default function PageAgenda({ profile }) {
   })
 
   const fmtHora = dt => new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const fmtDtHora = dt => new Date(dt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   const nomeMes = new Date(mesAno.ano, mesAno.mes).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
   const diasMes = getDaysInMonth(mesAno.ano, mesAno.mes)
@@ -229,7 +341,8 @@ export default function PageAgenda({ profile }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20 }}>
+      {/* Main layout: calendar + day panel + side panel */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px 300px', gap: 20 }}>
         {/* Calendário */}
         <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden' }}>
           {/* Dias da semana */}
@@ -350,6 +463,127 @@ export default function PageAgenda({ profile }) {
               ))
             )}
           </div>
+        </div>
+
+        {/* Side panel — Lista de Espera & Bloqueios */}
+        <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', borderBottom: `1px solid ${L.line}` }}>
+            {[
+              { key: 'espera', label: 'Lista de Espera', count: listaEspera.length },
+              { key: 'bloqueios', label: 'Bloqueios', count: bloqueios.length },
+            ].map(tab => (
+              <button key={tab.key} onClick={() => setSideTab(tab.key)} style={{
+                flex: 1, padding: '12px 8px', fontSize: 12, fontWeight: 600,
+                color: sideTab === tab.key ? L.teal : L.t3,
+                borderBottom: sideTab === tab.key ? `2px solid ${L.teal}` : '2px solid transparent',
+                background: 'transparent', transition: 'color 0.15s',
+              }}>
+                {tab.label}
+                {tab.count > 0 && (
+                  <span style={{
+                    marginLeft: 5, padding: '1px 6px', borderRadius: 20,
+                    background: sideTab === tab.key ? L.tealBg : L.surface,
+                    color: sideTab === tab.key ? L.teal : L.t4,
+                    fontSize: 10, fontWeight: 700
+                  }}>{tab.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          {sideTab === 'espera' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '10px 12px', borderBottom: `1px solid ${L.lineSoft}` }}>
+                <button onClick={() => { setFormEspera({ tipo: 'consulta', prioridade: 'normal' }); setModal('addEspera') }} style={{
+                  width: '100%', padding: '7px 0', borderRadius: 7,
+                  background: L.tealBg, color: L.teal, fontSize: 12, fontWeight: 600
+                }}>+ Adicionar à Lista</button>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1, maxHeight: 480 }}>
+                {listaEspera.length === 0 ? (
+                  <div style={{ padding: '32px 12px', textAlign: 'center', color: L.t4, fontSize: 12 }}>
+                    Nenhum paciente aguardando
+                  </div>
+                ) : (
+                  listaEspera.map(item => (
+                    <div key={item.id} style={{
+                      padding: '10px 12px', borderBottom: `1px solid ${L.lineSoft}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: L.t1 }}>{item.pacientes?.nome}</div>
+                        <PrioridadeBadge prioridade={item.prioridade} />
+                      </div>
+                      {item.medicos && (
+                        <div style={{ fontSize: 11, color: L.t3, marginBottom: 2 }}>Dr(a). {item.medicos.nome}</div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, color: L.t4, textTransform: 'capitalize' }}>{item.tipo}</span>
+                        <span style={{ fontSize: 10, color: L.t4 }}>·</span>
+                        <span style={{ fontSize: 11, color: L.t4 }}>{tempoEspera(item.criado_em)}</span>
+                      </div>
+                      {item.observacoes && (
+                        <div style={{ fontSize: 11, color: L.t3, marginBottom: 6, fontStyle: 'italic' }}>{item.observacoes}</div>
+                      )}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => agendarDaEspera(item.id)} style={{
+                          flex: 1, padding: '4px 0', borderRadius: 6,
+                          background: L.greenBg, color: L.green, fontSize: 11, fontWeight: 600
+                        }}>Agendar</button>
+                        <button onClick={() => removerDaEspera(item.id)} style={{
+                          padding: '4px 8px', borderRadius: 6,
+                          background: L.redBg, color: L.red, fontSize: 11, fontWeight: 600
+                        }}>Remover</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {sideTab === 'bloqueios' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '10px 12px', borderBottom: `1px solid ${L.lineSoft}` }}>
+                <button onClick={() => { setFormBloqueio({}); setModal('addBloqueio') }} style={{
+                  width: '100%', padding: '7px 0', borderRadius: 7,
+                  background: L.redBg, color: L.red, fontSize: 12, fontWeight: 600
+                }}>+ Novo Bloqueio</button>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1, maxHeight: 480 }}>
+                {bloqueios.length === 0 ? (
+                  <div style={{ padding: '32px 12px', textAlign: 'center', color: L.t4, fontSize: 12 }}>
+                    Nenhum bloqueio ativo
+                  </div>
+                ) : (
+                  bloqueios.map(b => (
+                    <div key={b.id} style={{
+                      padding: '10px 12px', borderBottom: `1px solid ${L.lineSoft}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: L.t1 }}>
+                            {b.medicos?.nome || 'Todos os médicos'}
+                          </div>
+                          <div style={{ fontSize: 11, color: L.t3, marginTop: 2 }}>
+                            {fmtDtHora(b.data_inicio)} → {fmtDtHora(b.data_fim)}
+                          </div>
+                          {b.motivo && (
+                            <div style={{ fontSize: 11, color: L.t4, marginTop: 3 }}>{b.motivo}</div>
+                          )}
+                        </div>
+                        <button onClick={() => excluirBloqueio(b.id)} style={{
+                          padding: '3px 7px', borderRadius: 6,
+                          background: L.redBg, color: L.red, fontSize: 12, flexShrink: 0
+                        }}>×</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -481,6 +715,113 @@ export default function PageAgenda({ profile }) {
               padding: '10px 0', borderRadius: 8, background: L.redBg,
               color: L.red, fontSize: 13, fontWeight: 500
             }}>Cancelar Agendamento</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal adicionar à lista de espera */}
+      {modal === 'addEspera' && (
+        <Modal title="Adicionar à Lista de Espera" onClose={() => setModal(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Field label="PACIENTE *">
+              <select style={{ ...inp, appearance: 'none' }} value={formEspera.paciente_id || ''}
+                onChange={e => setFormEspera({ ...formEspera, paciente_id: e.target.value })}
+              >
+                <option value="">Selecione o paciente</option>
+                {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </Field>
+            <Field label="MÉDICO">
+              <select style={{ ...inp, appearance: 'none' }} value={formEspera.medico_id || ''}
+                onChange={e => setFormEspera({ ...formEspera, medico_id: e.target.value })}
+              >
+                <option value="">Qualquer médico</option>
+                {medicos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label="TIPO">
+                <select style={{ ...inp, appearance: 'none' }} value={formEspera.tipo || 'consulta'}
+                  onChange={e => setFormEspera({ ...formEspera, tipo: e.target.value })}
+                >
+                  {['consulta', 'retorno', 'exame'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
+              <Field label="PRIORIDADE">
+                <select style={{ ...inp, appearance: 'none' }} value={formEspera.prioridade || 'normal'}
+                  onChange={e => setFormEspera({ ...formEspera, prioridade: e.target.value })}
+                >
+                  {['urgente', 'alta', 'normal', 'baixa'].map(p => (
+                    <option key={p} value={p}>{PRIORIDADE_MAP[p]?.label || p}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="OBSERVAÇÕES">
+              <textarea style={{ ...inp, minHeight: 64, resize: 'vertical' }}
+                value={formEspera.observacoes || ''} placeholder="Observações..."
+                onChange={e => setFormEspera({ ...formEspera, observacoes: e.target.value })}
+                onFocus={e => e.target.style.borderColor = L.teal}
+                onBlur={e => e.target.style.borderColor = L.line}
+              />
+            </Field>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setModal(null)} style={{
+                flex: 1, padding: '10px 0', borderRadius: 8, background: L.hover, color: L.t2, fontSize: 13
+              }}>Cancelar</button>
+              <button onClick={adicionarEspera} disabled={savingEspera || !formEspera.paciente_id} style={{
+                flex: 2, padding: '10px 0', borderRadius: 8, background: L.teal,
+                color: L.white, fontWeight: 600, fontSize: 13, opacity: savingEspera ? 0.7 : 1
+              }}>{savingEspera ? 'Salvando...' : 'Adicionar'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal novo bloqueio */}
+      {modal === 'addBloqueio' && (
+        <Modal title="Novo Bloqueio de Agenda" onClose={() => setModal(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Field label="MÉDICO">
+              <select style={{ ...inp, appearance: 'none' }} value={formBloqueio.medico_id || ''}
+                onChange={e => setFormBloqueio({ ...formBloqueio, medico_id: e.target.value })}
+              >
+                <option value="">Todos os médicos</option>
+                {medicos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
+            </Field>
+            <Field label="INÍCIO *">
+              <input type="datetime-local" style={inp} value={formBloqueio.data_inicio || ''}
+                onChange={e => setFormBloqueio({ ...formBloqueio, data_inicio: e.target.value })}
+                onFocus={e => e.target.style.borderColor = L.teal}
+                onBlur={e => e.target.style.borderColor = L.line}
+              />
+            </Field>
+            <Field label="FIM *">
+              <input type="datetime-local" style={inp} value={formBloqueio.data_fim || ''}
+                onChange={e => setFormBloqueio({ ...formBloqueio, data_fim: e.target.value })}
+                onFocus={e => e.target.style.borderColor = L.teal}
+                onBlur={e => e.target.style.borderColor = L.line}
+              />
+            </Field>
+            <Field label="MOTIVO">
+              <input style={inp} value={formBloqueio.motivo || ''} placeholder="Ex: Congresso, Férias..."
+                onChange={e => setFormBloqueio({ ...formBloqueio, motivo: e.target.value })}
+                onFocus={e => e.target.style.borderColor = L.teal}
+                onBlur={e => e.target.style.borderColor = L.line}
+              />
+            </Field>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setModal(null)} style={{
+                flex: 1, padding: '10px 0', borderRadius: 8, background: L.hover, color: L.t2, fontSize: 13
+              }}>Cancelar</button>
+              <button onClick={salvarBloqueio}
+                disabled={savingBloqueio || !formBloqueio.data_inicio || !formBloqueio.data_fim}
+                style={{
+                  flex: 2, padding: '10px 0', borderRadius: 8, background: L.red,
+                  color: L.white, fontWeight: 600, fontSize: 13, opacity: savingBloqueio ? 0.7 : 1
+                }}>{savingBloqueio ? 'Salvando...' : 'Criar Bloqueio'}</button>
+            </div>
           </div>
         </Modal>
       )}
