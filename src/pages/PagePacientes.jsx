@@ -4,7 +4,15 @@ import { L } from '../constants/theme.js'
 
 const SEXOS = ['Masculino', 'Feminino', 'Outro']
 
-function Modal({ title, onClose, children }) {
+const TIPO_LABELS = {
+  receita: 'Receita',
+  atestado: 'Atestado',
+  declaracao: 'Declaração',
+  solicitacao_exame: 'Solicitação de Exame',
+  encaminhamento: 'Encaminhamento',
+}
+
+function Modal({ title, onClose, children, wide }) {
   useEffect(() => {
     const esc = e => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', esc)
@@ -20,7 +28,7 @@ function Modal({ title, onClose, children }) {
     }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-wrap" style={{
         background: L.bg, borderRadius: '16px 16px 0 0',
-        width: '100%', maxWidth: 560, maxHeight: '90vh',
+        width: '100%', maxWidth: wide ? 900 : 560, maxHeight: '90vh',
         overflowY: 'auto', animation: 'up 0.25s ease',
         boxShadow: '0 -8px 40px rgba(0,0,0,0.12)'
       }}>
@@ -32,7 +40,7 @@ function Modal({ title, onClose, children }) {
           <div style={{ fontWeight: 700, fontSize: 16, color: L.t1 }}>{title}</div>
           <button onClick={onClose} style={{ fontSize: 20, color: L.t3, padding: '0 4px' }}>×</button>
         </div>
-        <div style={{ padding: '24px' }}>{children}</div>
+        <div>{children}</div>
       </div>
     </div>
   )
@@ -54,6 +62,627 @@ const inp = {
   width: '100%', padding: '9px 12px', fontSize: 13,
   border: `1.5px solid ${L.line}`, borderRadius: 8,
   background: L.bg, color: L.t1, outline: 'none',
+}
+
+function TabBar({ tabs, active, onChange }) {
+  return (
+    <div style={{
+      display: 'flex', borderBottom: `1px solid ${L.line}`,
+      padding: '0 24px', background: L.bg, position: 'sticky', top: 57, zIndex: 1
+    }}>
+      {tabs.map(t => (
+        <button key={t.id} onClick={() => onChange(t.id)} style={{
+          padding: '12px 16px', fontSize: 13, fontWeight: active === t.id ? 600 : 400,
+          color: active === t.id ? L.teal : L.t3,
+          borderBottom: active === t.id ? `3px solid ${L.teal}` : '3px solid transparent',
+          marginBottom: -1, transition: 'all 0.15s'
+        }}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function DadosPessoaisTab({ detalhe, onEditar, onInativar }) {
+  const calcIdade = dn => {
+    if (!dn) return '—'
+    const diff = Date.now() - new Date(dn).getTime()
+    return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)) + ' anos'
+  }
+
+  return (
+    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{
+        display: 'flex', gap: 16, alignItems: 'center',
+        padding: '16px', background: L.tealBg, borderRadius: 12
+      }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: '50%', background: L.teal,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: L.white, fontSize: 22, fontWeight: 700, flexShrink: 0
+        }}>
+          {detalhe.nome[0].toUpperCase()}
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 18, color: L.t1 }}>{detalhe.nome}</div>
+          <div style={{ fontSize: 13, color: L.teal }}>{detalhe.convenios?.nome || 'Particular'}</div>
+        </div>
+      </div>
+
+      {[
+        ['CPF', detalhe.cpf],
+        ['Nascimento', detalhe.data_nascimento
+          ? new Date(detalhe.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') +
+            ' (' + calcIdade(detalhe.data_nascimento) + ')'
+          : null],
+        ['Sexo', detalhe.sexo],
+        ['Telefone', detalhe.telefone],
+        ['E-mail', detalhe.email],
+        ['Carteirinha', detalhe.numero_carteirinha],
+        ['Endereço', [detalhe.endereco, detalhe.cidade, detalhe.estado].filter(Boolean).join(', ')],
+      ].filter(([, v]) => v).map(([k, v]) => (
+        <div key={k} style={{
+          display: 'flex', gap: 12, padding: '8px 0',
+          borderBottom: `1px solid ${L.lineSoft}`
+        }}>
+          <div style={{
+            fontSize: 11, color: L.t4, width: 100, flexShrink: 0,
+            fontFamily: "'JetBrains Mono', monospace"
+          }}>{k}</div>
+          <div style={{ fontSize: 13, color: L.t1 }}>{v}</div>
+        </div>
+      ))}
+
+      {detalhe.observacoes && (
+        <div style={{
+          padding: '12px', background: L.yellowBg, borderRadius: 8,
+          border: `1px solid ${L.yellowBd}`
+        }}>
+          <div style={{
+            fontSize: 11, color: L.t4, marginBottom: 4,
+            fontFamily: "'JetBrains Mono', monospace"
+          }}>OBSERVAÇÕES</div>
+          <div style={{ fontSize: 13, color: L.t2 }}>{detalhe.observacoes}</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={onEditar} style={{
+          flex: 1, padding: '10px 0', borderRadius: 8, background: L.tealBg,
+          color: L.teal, fontWeight: 600, fontSize: 13
+        }}>Editar</button>
+        <button onClick={onInativar} style={{
+          padding: '10px 16px', borderRadius: 8, background: L.redBg,
+          color: L.red, fontSize: 13
+        }}>Inativar</button>
+      </div>
+    </div>
+  )
+}
+
+function ProntuarioTab({ detalhe }) {
+  const [consultas, setConsultas] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [expandedConsulta, setExpandedConsulta] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      const { data } = await supabase
+        .from('consultas')
+        .select('*, medicos(nome)')
+        .eq('paciente_id', detalhe.id)
+        .order('data_hora', { ascending: false })
+        .limit(50)
+      if (!cancelled) {
+        setConsultas(data || [])
+        setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [detalhe.id])
+
+  const fmt = iso => {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const fmtBRL = v => v != null
+    ? 'R$ ' + Number(v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    : null
+
+  function handlePrint() {
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Prontuário - ${detalhe.nome}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 24px; }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  h2 { font-size: 14px; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 24px; }
+  h3 { font-size: 12px; margin: 12px 0 4px; }
+  .row { display: flex; gap: 16px; margin-bottom: 4px; }
+  .label { font-size: 10px; color: #666; width: 120px; flex-shrink: 0; }
+  .card { border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .card-header { font-weight: bold; margin-bottom: 8px; }
+  @media print { body { margin: 0; } }
+</style></head><body>
+<h1>Prontuário Médico</h1>
+<div class="row"><span class="label">Paciente:</span><span>${detalhe.nome}</span></div>
+<div class="row"><span class="label">CPF:</span><span>${detalhe.cpf || '—'}</span></div>
+<div class="row"><span class="label">Convênio:</span><span>${detalhe.convenios?.nome || 'Particular'}</span></div>
+<h2>Consultas</h2>
+${(consultas || []).slice().reverse().map(c => `
+<div class="card">
+  <div class="card-header">${fmt(c.data_hora)} — ${c.medicos?.nome || '—'} ${c.cid_principal ? '| CID: ' + c.cid_principal : ''}</div>
+  ${c.queixa_principal ? `<div class="row"><span class="label">Queixa:</span><span>${c.queixa_principal}</span></div>` : ''}
+  ${c.anamnese ? `<div class="row"><span class="label">Anamnese:</span><span>${c.anamnese}</span></div>` : ''}
+  ${c.exame_fisico ? `<div class="row"><span class="label">Exame Físico:</span><span>${c.exame_fisico}</span></div>` : ''}
+  ${c.hipotese_diagnostica ? `<div class="row"><span class="label">Hipótese Diag.:</span><span>${c.hipotese_diagnostica}</span></div>` : ''}
+  ${c.conduta ? `<div class="row"><span class="label">Conduta:</span><span>${c.conduta}</span></div>` : ''}
+  ${c.prescricao ? `<div class="row"><span class="label">Prescrição:</span><span>${c.prescricao}</span></div>` : ''}
+</div>`).join('')}
+</body></html>`
+    const w = window.open('', '_blank')
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    w.print()
+  }
+
+  if (loading) return (
+    <div style={{ padding: '48px 0', textAlign: 'center' }}>
+      <div style={{
+        width: 24, height: 24, border: `3px solid ${L.line}`,
+        borderTop: `3px solid ${L.teal}`, borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite', margin: '0 auto'
+      }} />
+    </div>
+  )
+
+  return (
+    <div style={{ padding: '20px 24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button onClick={handlePrint} style={{
+          padding: '8px 16px', borderRadius: 8, background: L.tealBg,
+          color: L.teal, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6
+        }}>🖨 Imprimir Prontuário</button>
+      </div>
+
+      {consultas.length === 0 ? (
+        <div style={{ textAlign: 'center', color: L.t4, fontSize: 14, padding: '32px 0' }}>
+          Nenhuma consulta registrada
+        </div>
+      ) : consultas.map(c => {
+        const isOpen = expandedConsulta === c.id
+        return (
+          <div key={c.id} style={{
+            border: `1px solid ${L.line}`, borderRadius: 10, marginBottom: 10,
+            overflow: 'hidden'
+          }}>
+            <button
+              onClick={() => setExpandedConsulta(isOpen ? null : c.id)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', padding: '12px 16px',
+                background: isOpen ? L.tealBg : L.surface, textAlign: 'left'
+              }}
+            >
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: L.t3
+                }}>{fmt(c.data_hora)}</span>
+                <span style={{ fontWeight: 600, color: L.t1, fontSize: 13 }}>
+                  {c.medicos?.nome || '—'}
+                </span>
+                {c.cid_principal && (
+                  <span style={{
+                    fontSize: 11, padding: '2px 7px', borderRadius: 5,
+                    background: L.hover, color: L.t3,
+                    fontFamily: "'JetBrains Mono', monospace"
+                  }}>CID {c.cid_principal}</span>
+                )}
+                {fmtBRL(c.valor) && (
+                  <span style={{ fontSize: 12, color: L.t3 }}>{fmtBRL(c.valor)}</span>
+                )}
+              </div>
+              <span style={{ color: L.t4, fontSize: 16, marginLeft: 12 }}>{isOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {isOpen && (
+              <div style={{ padding: '16px', borderTop: `1px solid ${L.lineSoft}` }}>
+                {[
+                  ['Queixa Principal', c.queixa_principal],
+                  ['Anamnese', c.anamnese],
+                  ['Exame Físico', c.exame_fisico],
+                  ['Hipótese Diagnóstica', c.hipotese_diagnostica],
+                  ['CID Principal', c.cid_principal],
+                  ['Conduta', c.conduta],
+                  ['Prescrição', c.prescricao],
+                ].filter(([, v]) => v).map(([k, v]) => (
+                  <div key={k} style={{
+                    display: 'flex', gap: 12, padding: '8px 0',
+                    borderBottom: `1px solid ${L.lineSoft}`
+                  }}>
+                    <div style={{
+                      fontSize: 11, color: L.t4, width: 140, flexShrink: 0,
+                      fontFamily: "'JetBrains Mono', monospace"
+                    }}>{k}</div>
+                    <div style={{ fontSize: 13, color: L.t1, whiteSpace: 'pre-wrap' }}>{v}</div>
+                  </div>
+                ))}
+                {![c.queixa_principal, c.anamnese, c.exame_fisico, c.hipotese_diagnostica, c.cid_principal, c.conduta, c.prescricao].some(Boolean) && (
+                  <div style={{ color: L.t4, fontSize: 13 }}>Sem detalhes registrados</div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function TriagensTab({ detalhe }) {
+  const [triagens, setTriagens] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      const { data } = await supabase
+        .from('triagem')
+        .select('*, usuarios(nome)')
+        .eq('paciente_id', detalhe.id)
+        .order('criado_em', { ascending: false })
+        .limit(20)
+      if (!cancelled) {
+        setTriagens(data || [])
+        setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [detalhe.id])
+
+  const fmt = iso => {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const parsePAS = pa => {
+    if (!pa) return null
+    const m = String(pa).match(/(\d+)/)
+    return m ? parseInt(m[1]) : null
+  }
+
+  const isCritical = t => {
+    const pas = parsePAS(t.pressao_arterial)
+    if (pas && pas > 160) return true
+    if (t.saturacao_o2 != null && Number(t.saturacao_o2) < 95) return true
+    return false
+  }
+
+  if (loading) return (
+    <div style={{ padding: '48px 0', textAlign: 'center' }}>
+      <div style={{
+        width: 24, height: 24, border: `3px solid ${L.line}`,
+        borderTop: `3px solid ${L.teal}`, borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite', margin: '0 auto'
+      }} />
+    </div>
+  )
+
+  return (
+    <div style={{ padding: '20px 24px' }}>
+      {triagens.length === 0 ? (
+        <div style={{ textAlign: 'center', color: L.t4, fontSize: 14, padding: '32px 0' }}>
+          Nenhuma triagem registrada
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: L.surface }}>
+                {['Data', 'Peso', 'Altura', 'PA', 'FC', 'Temp.', 'SpO₂', 'Dor', 'Profissional'].map(h => (
+                  <th key={h} style={{
+                    padding: '8px 10px', textAlign: 'left', fontSize: 10,
+                    color: L.t4, fontFamily: "'JetBrains Mono', monospace",
+                    borderBottom: `1px solid ${L.line}`, whiteSpace: 'nowrap'
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {triagens.map(t => {
+                const crit = isCritical(t)
+                const pas = parsePAS(t.pressao_arterial)
+                const paCrit = pas && pas > 160
+                const o2Crit = t.saturacao_o2 != null && Number(t.saturacao_o2) < 95
+                return (
+                  <tr key={t.id} style={{
+                    borderBottom: `1px solid ${L.lineSoft}`,
+                    background: crit ? '#fff5f5' : 'transparent'
+                  }}>
+                    <td style={{ padding: '10px 10px', color: L.t2, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
+                      {fmt(t.criado_em)}
+                    </td>
+                    <td style={{ padding: '10px 10px', color: L.t1 }}>{t.peso ? t.peso + ' kg' : '—'}</td>
+                    <td style={{ padding: '10px 10px', color: L.t1 }}>{t.altura ? t.altura + ' cm' : '—'}</td>
+                    <td style={{ padding: '10px 10px', color: paCrit ? L.red : L.t1, fontWeight: paCrit ? 700 : 400 }}>
+                      {t.pressao_arterial || '—'}
+                    </td>
+                    <td style={{ padding: '10px 10px', color: L.t1 }}>{t.frequencia_cardiaca ? t.frequencia_cardiaca + ' bpm' : '—'}</td>
+                    <td style={{ padding: '10px 10px', color: L.t1 }}>{t.temperatura ? t.temperatura + '°C' : '—'}</td>
+                    <td style={{ padding: '10px 10px', color: o2Crit ? L.red : L.t1, fontWeight: o2Crit ? 700 : 400 }}>
+                      {t.saturacao_o2 != null ? t.saturacao_o2 + '%' : '—'}
+                    </td>
+                    <td style={{ padding: '10px 10px', color: L.t1 }}>{t.escala_dor != null ? t.escala_dor + '/10' : '—'}</td>
+                    <td style={{ padding: '10px 10px', color: L.t3, fontSize: 11 }}>{t.usuarios?.nome || '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DocumentosTab({ detalhe }) {
+  const [documentos, setDocumentos] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      const { data } = await supabase
+        .from('documentos_medicos')
+        .select('*, medicos(nome)')
+        .eq('paciente_id', detalhe.id)
+        .order('criado_em', { ascending: false })
+        .limit(30)
+      if (!cancelled) {
+        setDocumentos(data || [])
+        setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [detalhe.id])
+
+  const fmt = iso => {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleDateString('pt-BR')
+  }
+
+  const tipoCor = {
+    receita: { bg: '#e8f5e9', color: '#2e7d32' },
+    atestado: { bg: '#e3f2fd', color: '#1565c0' },
+    declaracao: { bg: '#f3e5f5', color: '#6a1b9a' },
+    solicitacao_exame: { bg: '#fff3e0', color: '#e65100' },
+    encaminhamento: { bg: '#fce4ec', color: '#880e4f' },
+  }
+
+  if (loading) return (
+    <div style={{ padding: '48px 0', textAlign: 'center' }}>
+      <div style={{
+        width: 24, height: 24, border: `3px solid ${L.line}`,
+        borderTop: `3px solid ${L.teal}`, borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite', margin: '0 auto'
+      }} />
+    </div>
+  )
+
+  return (
+    <div style={{ padding: '20px 24px' }}>
+      {documentos.length === 0 ? (
+        <div style={{ textAlign: 'center', color: L.t4, fontSize: 14, padding: '32px 0' }}>
+          Nenhum documento registrado
+        </div>
+      ) : documentos.map(d => {
+        const cor = tipoCor[d.tipo] || { bg: L.hover, color: L.t2 }
+        return (
+          <div key={d.id} style={{
+            display: 'flex', gap: 14, alignItems: 'flex-start',
+            padding: '14px 0', borderBottom: `1px solid ${L.lineSoft}`
+          }}>
+            <span style={{
+              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+              background: cor.bg, color: cor.color, flexShrink: 0, marginTop: 2
+            }}>
+              {TIPO_LABELS[d.tipo] || d.tipo || 'Documento'}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+                <span style={{
+                  fontSize: 11, color: L.t4,
+                  fontFamily: "'JetBrains Mono', monospace"
+                }}>{fmt(d.criado_em)}</span>
+                {d.medicos?.nome && (
+                  <span style={{ fontSize: 12, color: L.t3 }}>{d.medicos.nome}</span>
+                )}
+              </div>
+              {d.descricao && (
+                <div style={{ fontSize: 13, color: L.t1, whiteSpace: 'pre-wrap' }}>{d.descricao}</div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function DetalhePacienteModal({ detalhe, onClose, onEditar, onInativar, profile }) {
+  const [tab, setTab] = useState('dados')
+
+  const TABS = [
+    { id: 'dados', label: 'Dados Pessoais' },
+    { id: 'prontuario', label: 'Prontuário' },
+    { id: 'triagens', label: 'Triagens' },
+    { id: 'documentos', label: 'Documentos' },
+  ]
+
+  function handlePrintCompleto() {
+    // Full print triggered from any tab — loads all data then prints
+    Promise.all([
+      supabase.from('consultas').select('*, medicos(nome)').eq('paciente_id', detalhe.id).order('data_hora', { ascending: true }).limit(50),
+      supabase.from('triagem').select('*, usuarios(nome)').eq('paciente_id', detalhe.id).order('criado_em', { ascending: true }).limit(20),
+      supabase.from('documentos_medicos').select('*, medicos(nome)').eq('paciente_id', detalhe.id).order('criado_em', { ascending: true }).limit(30),
+    ]).then(([{ data: consultas }, { data: triagens }, { data: docs }]) => {
+      const clinicaNome = profile?.clinicas?.nome || 'Clínica'
+      const fmtDt = iso => {
+        if (!iso) return '—'
+        const d = new Date(iso)
+        return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      }
+      const fmtD = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') : '—'
+      const calcIdade = dn => {
+        if (!dn) return ''
+        const diff = Date.now() - new Date(dn).getTime()
+        return ' (' + Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)) + ' anos)'
+      }
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Prontuário Completo - ${detalhe.nome}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 24px; }
+  .clinic { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+  .subtitle { font-size: 11px; color: #555; margin-bottom: 16px; }
+  h2 { font-size: 13px; font-weight: bold; border-bottom: 1px solid #999; padding-bottom: 3px; margin: 20px 0 10px; text-transform: uppercase; }
+  .row { display: flex; gap: 16px; margin-bottom: 4px; }
+  .label { font-size: 10px; color: #555; width: 130px; flex-shrink: 0; }
+  .card { border: 1px solid #ddd; border-radius: 4px; padding: 10px 12px; margin-bottom: 10px; page-break-inside: avoid; }
+  .card-title { font-weight: bold; margin-bottom: 6px; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+  th { padding: 5px 8px; text-align: left; background: #f5f5f5; border: 1px solid #ddd; font-size: 10px; }
+  td { padding: 5px 8px; border: 1px solid #ddd; vertical-align: top; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; background: #eee; }
+  @media print { body { margin: 0; } }
+</style></head><body>
+<div class="clinic">${clinicaNome}</div>
+<div class="subtitle">Prontuário Médico — Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+
+<h2>Identificação do Paciente</h2>
+<div class="row"><span class="label">Nome:</span><span>${detalhe.nome}</span></div>
+<div class="row"><span class="label">CPF:</span><span>${detalhe.cpf || '—'}</span></div>
+<div class="row"><span class="label">Nascimento:</span><span>${detalhe.data_nascimento ? fmtD(detalhe.data_nascimento + 'T00:00:00') + calcIdade(detalhe.data_nascimento) : '—'}</span></div>
+<div class="row"><span class="label">Sexo:</span><span>${detalhe.sexo || '—'}</span></div>
+<div class="row"><span class="label">Telefone:</span><span>${detalhe.telefone || '—'}</span></div>
+<div class="row"><span class="label">E-mail:</span><span>${detalhe.email || '—'}</span></div>
+<div class="row"><span class="label">Convênio:</span><span>${detalhe.convenios?.nome || 'Particular'}</span></div>
+${detalhe.numero_carteirinha ? `<div class="row"><span class="label">Carteirinha:</span><span>${detalhe.numero_carteirinha}</span></div>` : ''}
+${detalhe.endereco ? `<div class="row"><span class="label">Endereço:</span><span>${[detalhe.endereco, detalhe.cidade, detalhe.estado].filter(Boolean).join(', ')}</span></div>` : ''}
+${detalhe.observacoes ? `<div class="row"><span class="label">Observações:</span><span>${detalhe.observacoes}</span></div>` : ''}
+
+${consultas && consultas.length > 0 ? `
+<h2>Consultas (${consultas.length})</h2>
+${consultas.map(c => `
+<div class="card">
+  <div class="card-title">${fmtDt(c.data_hora)} — Dr(a). ${c.medicos?.nome || '—'}${c.cid_principal ? ' | CID: ' + c.cid_principal : ''}</div>
+  ${c.queixa_principal ? `<div class="row"><span class="label">Queixa Principal:</span><span>${c.queixa_principal}</span></div>` : ''}
+  ${c.anamnese ? `<div class="row"><span class="label">Anamnese:</span><span>${c.anamnese}</span></div>` : ''}
+  ${c.exame_fisico ? `<div class="row"><span class="label">Exame Físico:</span><span>${c.exame_fisico}</span></div>` : ''}
+  ${c.hipotese_diagnostica ? `<div class="row"><span class="label">Hipótese Diag.:</span><span>${c.hipotese_diagnostica}</span></div>` : ''}
+  ${c.conduta ? `<div class="row"><span class="label">Conduta:</span><span>${c.conduta}</span></div>` : ''}
+  ${c.prescricao ? `<div class="row"><span class="label">Prescrição:</span><span>${c.prescricao}</span></div>` : ''}
+</div>`).join('')}` : ''}
+
+${triagens && triagens.length > 0 ? `
+<h2>Triagens (${triagens.length})</h2>
+<table>
+  <thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>PA</th><th>FC</th><th>Temp.</th><th>SpO₂</th><th>Dor</th><th>Profissional</th></tr></thead>
+  <tbody>
+    ${triagens.map(t => `<tr>
+      <td>${fmtDt(t.criado_em)}</td>
+      <td>${t.peso ? t.peso + ' kg' : '—'}</td>
+      <td>${t.altura ? t.altura + ' cm' : '—'}</td>
+      <td>${t.pressao_arterial || '—'}</td>
+      <td>${t.frequencia_cardiaca ? t.frequencia_cardiaca + ' bpm' : '—'}</td>
+      <td>${t.temperatura ? t.temperatura + '°C' : '—'}</td>
+      <td>${t.saturacao_o2 != null ? t.saturacao_o2 + '%' : '—'}</td>
+      <td>${t.escala_dor != null ? t.escala_dor + '/10' : '—'}</td>
+      <td>${t.usuarios?.nome || '—'}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>` : ''}
+
+${docs && docs.length > 0 ? `
+<h2>Documentos (${docs.length})</h2>
+${docs.map(d => `
+<div class="card">
+  <div class="card-title"><span class="badge">${TIPO_LABELS[d.tipo] || d.tipo || 'Documento'}</span> — ${fmtD(d.criado_em)} ${d.medicos?.nome ? '| Dr(a). ' + d.medicos.nome : ''}</div>
+  ${d.descricao ? `<div>${d.descricao}</div>` : ''}
+</div>`).join('')}` : ''}
+
+</body></html>`
+      const w = window.open('', '_blank')
+      w.document.write(html)
+      w.document.close()
+      w.focus()
+      w.print()
+    })
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.4)', display: 'flex',
+      alignItems: 'flex-end', justifyContent: 'center'
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: L.bg, borderRadius: '16px 16px 0 0',
+        width: '100%', maxWidth: 900, maxHeight: '90vh',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.12)'
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', borderBottom: `1px solid ${L.line}`,
+          flexShrink: 0
+        }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: L.t1 }}>Ficha do Paciente</div>
+            <div style={{ fontSize: 12, color: L.t4, marginTop: 2 }}>{detalhe.nome}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button onClick={handlePrintCompleto} style={{
+              padding: '7px 14px', borderRadius: 8, background: L.hover,
+              color: L.t2, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5
+            }}>🖨 Prontuário Completo</button>
+            <button onClick={onClose} style={{ fontSize: 20, color: L.t3, padding: '0 4px' }}>×</button>
+          </div>
+        </div>
+
+        {/* Tab Bar */}
+        <div style={{ flexShrink: 0 }}>
+          <TabBar tabs={TABS} active={tab} onChange={setTab} />
+        </div>
+
+        {/* Content */}
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {tab === 'dados' && (
+            <DadosPessoaisTab
+              detalhe={detalhe}
+              onEditar={onEditar}
+              onInativar={onInativar}
+            />
+          )}
+          {tab === 'prontuario' && <ProntuarioTab detalhe={detalhe} />}
+          {tab === 'triagens' && <TriagensTab detalhe={detalhe} />}
+          {tab === 'documentos' && <DocumentosTab detalhe={detalhe} />}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function PagePacientes({ profile }) {
@@ -230,7 +859,7 @@ export default function PagePacientes({ profile }) {
           title={modal === 'novo' ? 'Novo Paciente' : 'Editar Paciente'}
           onClose={() => setModal(null)}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Field label="NOME COMPLETO *">
               <input style={inp} value={form.nome || ''} placeholder="Nome do paciente"
                 onChange={e => setForm({ ...form, nome: e.target.value })}
@@ -339,67 +968,15 @@ export default function PagePacientes({ profile }) {
         </Modal>
       )}
 
-      {/* Detalhe */}
+      {/* Detalhe — Prontuário Completo */}
       {detalhe && (
-        <Modal title="Ficha do Paciente" onClose={() => setDetalhe(null)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{
-              display: 'flex', gap: 16, alignItems: 'center',
-              padding: '16px', background: L.tealBg, borderRadius: 12
-            }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: '50%', background: L.teal,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: L.white, fontSize: 22, fontWeight: 700
-              }}>
-                {detalhe.nome[0].toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 18, color: L.t1 }}>{detalhe.nome}</div>
-                <div style={{ fontSize: 13, color: L.teal }}>{detalhe.convenios?.nome || 'Particular'}</div>
-              </div>
-            </div>
-
-            {[
-              ['CPF', detalhe.cpf],
-              ['Nascimento', detalhe.data_nascimento ? new Date(detalhe.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') : null],
-              ['Sexo', detalhe.sexo],
-              ['Telefone', detalhe.telefone],
-              ['E-mail', detalhe.email],
-              ['Carteirinha', detalhe.numero_carteirinha],
-              ['Endereço', [detalhe.endereco, detalhe.cidade, detalhe.estado].filter(Boolean).join(', ')],
-            ].filter(([, v]) => v).map(([k, v]) => (
-              <div key={k} style={{
-                display: 'flex', gap: 12, padding: '8px 0',
-                borderBottom: `1px solid ${L.lineSoft}`
-              }}>
-                <div style={{ fontSize: 11, color: L.t4, width: 100, flexShrink: 0,
-                  fontFamily: "'JetBrains Mono', monospace" }}>{k}</div>
-                <div style={{ fontSize: 13, color: L.t1 }}>{v}</div>
-              </div>
-            ))}
-
-            {detalhe.observacoes && (
-              <div style={{ padding: '12px', background: L.yellowBg, borderRadius: 8,
-                border: `1px solid ${L.yellowBd}` }}>
-                <div style={{ fontSize: 11, color: L.t4, marginBottom: 4,
-                  fontFamily: "'JetBrains Mono', monospace" }}>OBSERVAÇÕES</div>
-                <div style={{ fontSize: 13, color: L.t2 }}>{detalhe.observacoes}</div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => { setDetalhe(null); abrirEditar(detalhe) }} style={{
-                flex: 1, padding: '10px 0', borderRadius: 8, background: L.tealBg,
-                color: L.teal, fontWeight: 600, fontSize: 13
-              }}>Editar</button>
-              <button onClick={() => { inativar(detalhe.id); setDetalhe(null) }} style={{
-                padding: '10px 16px', borderRadius: 8, background: L.redBg,
-                color: L.red, fontSize: 13
-              }}>Inativar</button>
-            </div>
-          </div>
-        </Modal>
+        <DetalhePacienteModal
+          detalhe={detalhe}
+          profile={profile}
+          onClose={() => setDetalhe(null)}
+          onEditar={() => { setDetalhe(null); abrirEditar(detalhe) }}
+          onInativar={() => { inativar(detalhe.id); setDetalhe(null) }}
+        />
       )}
     </div>
   )
