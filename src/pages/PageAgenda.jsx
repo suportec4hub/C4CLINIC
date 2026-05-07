@@ -122,6 +122,11 @@ export default function PageAgenda({ profile }) {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [selecionado, setSelecionado] = useState(null)
+  const [whatsappAg, setWhatsappAg] = useState(null)
+  const [whatsappTexto, setWhatsappTexto] = useState('')
+  const [whatsappCopiado, setWhatsappCopiado] = useState(false)
+  const [recorrente, setRecorrente] = useState(false)
+  const [retornoDias, setRetornoDias] = useState(30)
 
   // Lista de espera & bloqueios
   const [listaEspera, setListaEspera] = useState([])
@@ -200,6 +205,8 @@ export default function PageAgenda({ profile }) {
       tipo: 'consulta',
       status: 'agendado'
     })
+    setRecorrente(false)
+    setRetornoDias(30)
     setModal('form')
   }
 
@@ -207,6 +214,23 @@ export default function PageAgenda({ profile }) {
     setSaving(true)
     if (modal === 'form' && !selecionado) {
       await supabase.from('agendamentos').insert(form)
+      if (recorrente && form.data_hora) {
+        const dataOriginal = new Date(form.data_hora)
+        const dataRetorno = new Date(dataOriginal.getTime() + retornoDias * 24 * 60 * 60 * 1000)
+        const dataRetornoStr = dataRetorno.toISOString().slice(0, 16)
+        const dataFormatada = dataOriginal.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        await supabase.from('agendamentos').insert({
+          clinica_id: form.clinica_id,
+          paciente_id: form.paciente_id,
+          medico_id: form.medico_id,
+          convenio_id: form.convenio_id || null,
+          data_hora: dataRetornoStr,
+          duracao_min: form.duracao_min || 30,
+          tipo: 'retorno',
+          status: 'agendado',
+          observacoes: `Retorno automático - ${retornoDias} dias após consulta de ${dataFormatada}`,
+        })
+      }
     } else if (selecionado) {
       const { id, pacientes: _, medicos: __, convenios: ___, ...rest } = form
       await supabase.from('agendamentos').update(rest).eq('id', id)
