@@ -64,26 +64,34 @@ export default function PageConsultas({ profile }) {
   const [busca, setBusca] = useState('')
   const [filtroMed, setFiltroMed] = useState('')
 
+  // Templates state
+  const [templates, setTemplates] = useState([])
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [templateNome, setTemplateNome] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+
   const clinicaId = profile?.clinica_id
 
   useEffect(() => { if (clinicaId) load() }, [clinicaId])
 
   async function load() {
     setLoading(true)
-    const [cs, pacs, meds, convs] = await Promise.all([
+    const [cs, pacs, meds, convs, tmpls] = await Promise.all([
       supabase.from('consultas')
         .select('*, pacientes(id,nome,data_nascimento), medicos(id,nome), convenios(nome)')
         .eq('clinica_id', clinicaId)
         .order('data_hora', { ascending: false })
         .limit(200),
       supabase.from('pacientes').select('id, nome').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
-      supabase.from('medicos').select('id, nome').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
+      supabase.from('medicos').select('id, nome, especialidade').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
       supabase.from('convenios').select('id, nome').eq('clinica_id', clinicaId).eq('ativo', true),
+      supabase.from('consulta_templates').select('*').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
     ])
     setConsultas(cs.data || [])
     setPacientes(pacs.data || [])
     setMedicos(meds.data || [])
     setConvenios(convs.data || [])
+    setTemplates(tmpls.data || [])
     setLoading(false)
   }
 
@@ -94,11 +102,13 @@ export default function PageConsultas({ profile }) {
       tipo: 'consulta',
       status: 'realizada'
     })
+    setShowTemplatePicker(false)
     setModal('form')
   }
 
   function abrirEditar(c) {
     setForm({ ...c, data_hora: c.data_hora?.slice(0, 16) })
+    setShowTemplatePicker(false)
     setModal('form')
   }
 
@@ -116,6 +126,51 @@ export default function PageConsultas({ profile }) {
     load()
   }
 
+  // Template helpers
+  function getMedicoEspecialidade() {
+    if (!form.medico_id) return null
+    const med = medicos.find(m => m.id === form.medico_id)
+    return med?.especialidade || null
+  }
+
+  function getTemplatesFiltrados() {
+    const esp = getMedicoEspecialidade()
+    if (!esp) return templates
+    // show templates matching doctor's specialty, then the rest
+    const matching = templates.filter(t => t.especialidade?.toLowerCase() === esp.toLowerCase())
+    const outros = templates.filter(t => t.especialidade?.toLowerCase() !== esp.toLowerCase())
+    return [...matching, ...outros]
+  }
+
+  function aplicarTemplate(tmpl) {
+    setForm(f => ({
+      ...f,
+      anamnese: tmpl.anamnese_template || f.anamnese || '',
+      exame_fisico: tmpl.exame_fisico_template || f.exame_fisico || '',
+      conduta: tmpl.conduta_template || f.conduta || '',
+    }))
+    setShowTemplatePicker(false)
+  }
+
+  async function salvarComoTemplate() {
+    if (!templateNome.trim()) return
+    setSavingTemplate(true)
+    const esp = getMedicoEspecialidade()
+    await supabase.from('consulta_templates').insert({
+      clinica_id: clinicaId,
+      especialidade: esp || null,
+      nome: templateNome.trim(),
+      anamnese_template: form.anamnese || null,
+      exame_fisico_template: form.exame_fisico || null,
+      conduta_template: form.conduta || null,
+      ativo: true,
+    })
+    setSavingTemplate(false)
+    setTemplateNome('')
+    setModal('form')
+    load()
+  }
+
   const filtradas = consultas.filter(c => {
     const matchBusca = !busca ||
       c.pacientes?.nome?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -129,6 +184,8 @@ export default function PageConsultas({ profile }) {
   })
   const fmtHora = dt => new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   const fmt = v => v?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const templatesFiltrados = getTemplatesFiltrados()
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -224,9 +281,79 @@ export default function PageConsultas({ profile }) {
       {modal === 'form' && (
         <Modal
           title={form.id ? 'Editar Consulta / Prontuário' : 'Nova Consulta / Prontuário'}
-          onClose={() => setModal(null)} wide
+          onClose={() => { setModal(null); setShowTemplatePicker(false) }} wide
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Template bar */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 14px', background: L.surface,
+              borderRadius: 10, border: `1px solid ${L.line}`
+            }}>
+              <span style={{ fontSize: 12, color: L.t3, flex: 1 }}>
+                {templatesFiltrados.length > 0
+                  ? `${templatesFiltrados.length} template${templatesFiltrados.length !== 1 ? 's' : ''} disponível${templatesFiltrados.length !== 1 ? 'is' : ''}`
+                  : 'Nenhum template cadastrado'}
+              </span>
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowTemplatePicker(v => !v)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 7,
+                    background: showTemplatePicker ? L.tealBg : L.bg,
+                    border: `1.5px solid ${showTemplatePicker ? L.teal : L.line}`,
+                    color: showTemplatePicker ? L.teal : L.t2,
+                    fontSize: 12, fontWeight: 600
+                  }}
+                >
+                  Usar Template ▾
+                </button>
+                {showTemplatePicker && (
+                  <div style={{
+                    position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 10,
+                    background: L.bg, border: `1px solid ${L.line}`, borderRadius: 10,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.10)', minWidth: 260, maxHeight: 280,
+                    overflowY: 'auto'
+                  }}>
+                    {templatesFiltrados.length === 0 ? (
+                      <div style={{ padding: '20px 16px', textAlign: 'center', color: L.t4, fontSize: 12 }}>
+                        Nenhum template disponível
+                      </div>
+                    ) : (
+                      templatesFiltrados.map(tmpl => (
+                        <button key={tmpl.id}
+                          onClick={() => aplicarTemplate(tmpl)}
+                          style={{
+                            width: '100%', textAlign: 'left', padding: '10px 14px',
+                            borderBottom: `1px solid ${L.lineSoft}`,
+                            transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = L.hover}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13, color: L.t1 }}>{tmpl.nome}</div>
+                          {tmpl.especialidade && (
+                            <div style={{ fontSize: 11, color: L.teal, marginTop: 1 }}>{tmpl.especialidade}</div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => { setTemplateNome(''); setModal('saveTemplate') }}
+                style={{
+                  padding: '6px 12px', borderRadius: 7,
+                  background: L.bg, border: `1.5px solid ${L.line}`,
+                  color: L.t2, fontSize: 12, fontWeight: 600
+                }}
+              >
+                Salvar como Template
+              </button>
+            </div>
+
             {/* Cabeçalho */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 140px', gap: 12 }}>
               <Field label="PACIENTE *">
@@ -377,13 +504,58 @@ export default function PageConsultas({ profile }) {
             </div>
 
             <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
-              <button onClick={() => setModal(null)} style={{
+              <button onClick={() => { setModal(null); setShowTemplatePicker(false) }} style={{
                 flex: 1, padding: '11px 0', borderRadius: 8, background: L.hover, color: L.t2, fontSize: 13
               }}>Cancelar</button>
               <button onClick={salvar} disabled={saving || !form.paciente_id} style={{
                 flex: 2, padding: '11px 0', borderRadius: 8, background: L.teal,
                 color: L.white, fontWeight: 600, fontSize: 13, opacity: saving ? 0.7 : 1
               }}>{saving ? 'Salvando...' : 'Salvar Prontuário'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal salvar como template */}
+      {modal === 'saveTemplate' && (
+        <Modal title="Salvar como Template" onClose={() => setModal('form')}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{
+              padding: '12px 14px', background: L.tealBg, borderRadius: 8,
+              fontSize: 12, color: L.teal
+            }}>
+              Será salvo com o conteúdo atual de anamnese, exame físico e conduta.
+              {getMedicoEspecialidade() && (
+                <span style={{ display: 'block', marginTop: 4, color: L.t3 }}>
+                  Especialidade: <strong>{getMedicoEspecialidade()}</strong>
+                </span>
+              )}
+            </div>
+            <Field label="NOME DO TEMPLATE *">
+              <input
+                style={inp}
+                value={templateNome}
+                placeholder="Ex: Consulta Cardio padrão, Retorno Hipertensão..."
+                onChange={e => setTemplateNome(e.target.value)}
+                autoFocus
+                onFocus={e => e.target.style.borderColor = L.teal}
+                onBlur={e => e.target.style.borderColor = L.line}
+                onKeyDown={e => e.key === 'Enter' && templateNome.trim() && salvarComoTemplate()}
+              />
+            </Field>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setModal('form')} style={{
+                flex: 1, padding: '10px 0', borderRadius: 8, background: L.hover, color: L.t2, fontSize: 13
+              }}>Voltar</button>
+              <button
+                onClick={salvarComoTemplate}
+                disabled={savingTemplate || !templateNome.trim()}
+                style={{
+                  flex: 2, padding: '10px 0', borderRadius: 8, background: L.teal,
+                  color: L.white, fontWeight: 600, fontSize: 13,
+                  opacity: (savingTemplate || !templateNome.trim()) ? 0.6 : 1
+                }}
+              >{savingTemplate ? 'Salvando...' : 'Salvar Template'}</button>
             </div>
           </div>
         </Modal>
