@@ -43,8 +43,10 @@ export const NAV_ITEMS = [
     group: 'clínica',
     items: [
       { id: 'pacientes',  label: 'Pacientes',  icon: '◈' },
+      { id: 'triagem',    label: 'Triagem',    icon: '♡' },
       { id: 'agenda',     label: 'Agenda',     icon: '◷' },
       { id: 'consultas',  label: 'Consultas',  icon: '✦' },
+      { id: 'documentos', label: 'Documentos', icon: '◫' },
       { id: 'medicos',    label: 'Médicos',    icon: '◇' },
     ]
   },
@@ -53,22 +55,23 @@ export const NAV_ITEMS = [
     items: [
       { id: 'convenios',  label: 'Convênios',  icon: '⊡' },
       { id: 'financeiro', label: 'Financeiro', icon: '◬' },
+      { id: 'estoque',    label: 'Estoque',    icon: '▣' },
       { id: 'relatorios', label: 'Relatórios', icon: '▤' },
     ]
   },
   {
     group: 'administração',
     items: [
-      { id: 'usuarios',      label: 'Usuários',         icon: '◉', minRole: 'admin_clinica' },
-      { id: 'configuracoes', label: 'Configurações',     icon: '⚙', minRole: 'admin_clinica' },
+      { id: 'usuarios',      label: 'Usuários',     icon: '◉', minRole: 'admin_clinica' },
+      { id: 'configuracoes', label: 'Configurações', icon: '⚙', minRole: 'admin_clinica' },
     ]
   },
   {
     group: 'C4HUB',
     c4hubOnly: true,
     items: [
-      { id: 'clientes',      label: 'Clínicas & Hospitais', icon: '🏥', c4hubOnly: true },
-      { id: 'todos_usuarios', label: 'Todos os Usuários',   icon: '👥', c4hubOnly: true },
+      { id: 'clientes',       label: 'Clínicas & Hospitais', icon: '🏥', c4hubOnly: true },
+      { id: 'todos_usuarios', label: 'Todos os Usuários',    icon: '👥', c4hubOnly: true },
     ]
   }
 ]
@@ -76,11 +79,14 @@ export const NAV_ITEMS = [
 export const PAGE_TITLES = {
   dashboard:      'Dashboard',
   pacientes:      'Pacientes',
+  triagem:        'Triagem & Sinais Vitais',
   agenda:         'Agenda',
   consultas:      'Consultas',
+  documentos:     'Documentos Médicos',
   medicos:        'Médicos',
   convenios:      'Convênios',
   financeiro:     'Financeiro',
+  estoque:        'Estoque',
   relatorios:     'Relatórios',
   usuarios:       'Usuários',
   configuracoes:  'Configurações',

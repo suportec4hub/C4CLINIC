@@ -13,6 +13,9 @@ import PageUsuarios from '../pages/PageUsuarios.jsx'
 import PageConfiguracoes from '../pages/PageConfiguracoes.jsx'
 import PageClientes from '../pages/PageClientes.jsx'
 import PageTodosUsuarios from '../pages/PageTodosUsuarios.jsx'
+import PageTriagem from '../pages/PageTriagem.jsx'
+import PageDocumentos from '../pages/PageDocumentos.jsx'
+import PageEstoque from '../pages/PageEstoque.jsx'
 
 export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const [page, setPage] = useState('dashboard')
@@ -296,6 +299,9 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'configuracoes'  && <PageConfiguracoes {...pageProps} onProfileUpdate={onProfileUpdate} />}
             {page === 'clientes'       && <PageClientes {...pageProps} />}
             {page === 'todos_usuarios' && <PageTodosUsuarios {...pageProps} />}
+            {page === 'triagem'        && <PageTriagem {...pageProps} />}
+            {page === 'documentos'     && <PageDocumentos {...pageProps} />}
+            {page === 'estoque'        && <PageEstoque {...pageProps} />}
           </div>
         </main>
       </div>
