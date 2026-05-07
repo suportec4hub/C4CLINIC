@@ -48,6 +48,22 @@ export const L = {
   orange: '#ea580c',
   orangeBg: '#fff7ed',
   orangeBd: '#fed7aa',
+
+  // Medical status colors
+  statusNormal:  '#16a34a',
+  statusAtencao: '#ca8a04',
+  statusCritico: '#dc2626',
+  statusNormalBg:  '#f0fdf4',
+  statusAtencaoBg: '#fefce8',
+  statusCriticoBg: '#fef2f2',
+
+  // Gradients / accents
+  tealDark: '#0a5555',
+  tealGrad: 'linear-gradient(135deg, #0d6e6e 0%, #0f8585 100%)',
+  bgCard: '#ffffff',
+  shadow: '0 1px 3px rgba(0,0,0,0.08)',
+  shadowMd: '0 4px 16px rgba(0,0,0,0.08)',
+  shadowLg: '0 8px 32px rgba(0,0,0,0.12)',
 }
 
 export const globalCSS = `
@@ -75,10 +91,38 @@ export const globalCSS = `
 
   #root { height: 100%; }
 
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: ${L.line}; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: ${L.t4}; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb { background: ${L.line}; border-radius: 8px; transition: background 0.2s; }
+  ::-webkit-scrollbar-thumb:hover { background: ${L.t3}; }
+
+  .card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 600;
+    background: linear-gradient(135deg, #0d6e6e 0%, #0f8585 100%);
+    color: #ffffff; cursor: pointer; border: none; font-family: inherit;
+    box-shadow: 0 1px 4px rgba(13,110,110,0.25);
+    transition: opacity 0.15s, box-shadow 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.92; box-shadow: 0 4px 12px rgba(13,110,110,0.30); }
+  .btn-primary:active { opacity: 0.85; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 500;
+    background: transparent; color: #374151; cursor: pointer;
+    border: 1px solid #e5e7eb; font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-ghost:hover { background: #f3f4f6; border-color: #d1d5db; }
+  .btn-ghost:active { background: #e5e7eb; }
 
   @keyframes up {
     from { opacity: 0; transform: translateY(8px); }
@@ -116,5 +160,10 @@ export const globalCSS = `
   }
   @media (min-width: 1920px) {
     .page-content { max-width: 1800px; margin: 0 auto; }
+  }
+
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
   }
 `

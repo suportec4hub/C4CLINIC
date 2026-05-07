@@ -56,6 +56,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100%',
       background: L.bg, borderRight: `1px solid ${L.line}`,
+      boxShadow: '4px 0 24px rgba(0,0,0,0.06)',
       width: isMobile ? 220 : sw, transition: 'width 0.2s ease', overflow: 'hidden',
     }}>
       {/* Logo */}
@@ -67,9 +68,11 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
         {(!collapsed || isMobile) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
             <div style={{
-              width: 34, height: 34, borderRadius: 10, background: L.tealBg,
-              border: `1.5px solid ${L.line}`, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 18, flexShrink: 0
+              width: 34, height: 34, borderRadius: 10,
+              background: 'linear-gradient(135deg, #0d6e6e, #0f8585)',
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: 18, flexShrink: 0,
+              boxShadow: '0 2px 8px rgba(13,110,110,0.30)'
             }}>🏥</div>
             <div>
               <div style={{
@@ -84,7 +87,12 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
         )}
         {collapsed && !isMobile && (
           <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-            <span style={{ fontSize: 20 }}>🏥</span>
+            <div style={{
+              width: 34, height: 34, borderRadius: 10,
+              background: 'linear-gradient(135deg, #0d6e6e, #0f8585)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, boxShadow: '0 2px 8px rgba(13,110,110,0.30)'
+            }}>🏥</div>
           </div>
         )}
         {!isMobile && (
