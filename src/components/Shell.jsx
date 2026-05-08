@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
 import { NAV_ITEMS, PAGE_TITLES, isC4HubAdmin, isClinicaAdmin } from '../constants/nav.js'
 import PageDashboard from '../pages/PageDashboard.jsx'
@@ -17,12 +18,19 @@ import PageTriagem from '../pages/PageTriagem.jsx'
 import PageDocumentos from '../pages/PageDocumentos.jsx'
 import PageEstoque from '../pages/PageEstoque.jsx'
 import PageFluxo from '../pages/PageFluxo.jsx'
+import PageAtividades from '../pages/PageAtividades.jsx'
 
 export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const [page, setPage] = useState('dashboard')
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [buscaAberta, setBuscaAberta] = useState(false)
+  const [buscaQuery, setBuscaQuery] = useState('')
+  const [buscaResultados, setBuscaResultados] = useState({ pacientes: [], medicos: [] })
+  const [buscaLoading, setBuscaLoading] = useState(false)
+  const buscaRef = useRef(null)
+  const buscaTimerRef = useRef(null)
 
   const cargo = profile?.cargo || ''
   const isMaster = isC4HubAdmin(cargo)
@@ -41,7 +49,37 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  function nav(id) { setPage(id); if (isMobile) setMobileOpen(false) }
+  function nav(id) { setPage(id); if (isMobile) setMobileOpen(false); setBuscaAberta(false); setBuscaQuery('') }
+
+  const executarBusca = useCallback(async (q) => {
+    if (!q.trim() || q.length < 2) { setBuscaResultados({ pacientes: [], medicos: [] }); return }
+    const clinicaId = profile?.clinica_id
+    if (!clinicaId) return
+    setBuscaLoading(true)
+    const [{ data: pacs }, { data: meds }] = await Promise.all([
+      supabase.from('pacientes').select('id, nome, cpf, data_nascimento').eq('clinica_id', clinicaId).ilike('nome', `%${q}%`).eq('ativo', true).limit(6),
+      supabase.from('medicos').select('id, nome, especialidade, crm').eq('clinica_id', clinicaId).ilike('nome', `%${q}%`).eq('ativo', true).limit(4),
+    ])
+    setBuscaResultados({ pacientes: pacs || [], medicos: meds || [] })
+    setBuscaLoading(false)
+  }, [profile?.clinica_id])
+
+  function onBuscaChange(e) {
+    const q = e.target.value
+    setBuscaQuery(q)
+    clearTimeout(buscaTimerRef.current)
+    buscaTimerRef.current = setTimeout(() => executarBusca(q), 280)
+  }
+
+  useEffect(() => {
+    if (buscaAberta) setTimeout(() => buscaRef.current?.focus(), 50)
+  }, [buscaAberta])
+
+  useEffect(() => {
+    const esc = e => { if (e.key === 'Escape') setBuscaAberta(false) }
+    if (buscaAberta) window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [buscaAberta])
 
   function canSee(item) {
     if (item.c4hubOnly && !isMaster) return false
@@ -261,6 +299,16 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             fontSize: 18, color: L.t1, flex: 1, letterSpacing: '-0.2px'
           }}>{PAGE_TITLES[page] || page}</div>
 
+          <button
+            onClick={() => setBuscaAberta(true)}
+            title="Busca global"
+            style={{
+              width: 32, height: 32, borderRadius: 8, background: L.hover,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: L.t3, fontSize: 15
+            }}
+          >🔍</button>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: L.t3 }}>
             <div style={{
               width: 7, height: 7, borderRadius: '50%',
@@ -304,9 +352,142 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'documentos'     && <PageDocumentos {...pageProps} />}
             {page === 'estoque'        && <PageEstoque {...pageProps} />}
             {page === 'fluxo'          && <PageFluxo {...pageProps} />}
+            {page === 'atividades'     && <PageAtividades {...pageProps} />}
           </div>
         </main>
       </div>
+
+      {/* Busca Global */}
+      {buscaAberta && (
+        <div
+          onClick={() => setBuscaAberta(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            paddingTop: 80
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 580, background: L.bg,
+              borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: `1px solid ${L.line}` }}>
+              <span style={{ fontSize: 17, color: L.t4 }}>🔍</span>
+              <input
+                ref={buscaRef}
+                value={buscaQuery}
+                onChange={onBuscaChange}
+                placeholder="Buscar pacientes e médicos..."
+                style={{
+                  flex: 1, fontSize: 15, color: L.t1, background: 'transparent',
+                  border: 'none', outline: 'none'
+                }}
+              />
+              {buscaLoading && (
+                <div style={{
+                  width: 16, height: 16, border: `2px solid ${L.line}`,
+                  borderTop: `2px solid ${L.teal}`, borderRadius: '50%',
+                  animation: 'spin 0.7s linear infinite'
+                }} />
+              )}
+              <kbd style={{
+                fontSize: 11, color: L.t4, border: `1px solid ${L.line}`,
+                borderRadius: 5, padding: '2px 6px', fontFamily: 'monospace'
+              }}>Esc</kbd>
+            </div>
+
+            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+              {buscaQuery.length < 2 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: L.t4, fontSize: 13 }}>
+                  Digite pelo menos 2 caracteres para buscar
+                </div>
+              ) : (buscaResultados.pacientes.length === 0 && buscaResultados.medicos.length === 0 && !buscaLoading) ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: L.t4, fontSize: 13 }}>
+                  Nenhum resultado encontrado
+                </div>
+              ) : (
+                <>
+                  {buscaResultados.pacientes.length > 0 && (
+                    <div>
+                      <div style={{
+                        padding: '8px 18px 4px', fontSize: 10, color: L.t4,
+                        fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.6px',
+                        textTransform: 'uppercase'
+                      }}>Pacientes</div>
+                      {buscaResultados.pacientes.map(p => {
+                        const idade = p.data_nascimento
+                          ? Math.floor((Date.now() - new Date(p.data_nascimento).getTime()) / (1000*60*60*24*365.25)) + ' anos'
+                          : null
+                        return (
+                          <button key={p.id} onClick={() => nav('pacientes')}
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                              padding: '10px 18px', transition: 'background 0.1s', textAlign: 'left'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = L.hover}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{
+                              width: 34, height: 34, borderRadius: '50%', background: L.tealBg,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: L.teal, fontSize: 14, fontWeight: 700, flexShrink: 0
+                            }}>{p.nome[0].toUpperCase()}</div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: L.t1 }}>{p.nome}</div>
+                              <div style={{ fontSize: 11, color: L.t4 }}>
+                                {[p.cpf, idade].filter(Boolean).join(' · ')}
+                              </div>
+                            </div>
+                            <span style={{ marginLeft: 'auto', fontSize: 11, color: L.t4 }}>Paciente →</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {buscaResultados.medicos.length > 0 && (
+                    <div>
+                      <div style={{
+                        padding: '8px 18px 4px', fontSize: 10, color: L.t4,
+                        fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.6px',
+                        textTransform: 'uppercase'
+                      }}>Médicos</div>
+                      {buscaResultados.medicos.map(m => (
+                        <button key={m.id} onClick={() => nav('medicos')}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '10px 18px', transition: 'background 0.1s', textAlign: 'left'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = L.hover}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{
+                            width: 34, height: 34, borderRadius: '50%', background: L.teal,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: L.white, fontSize: 14, fontWeight: 700, flexShrink: 0
+                          }}>{m.nome[0].toUpperCase()}</div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: L.t1 }}>Dr(a). {m.nome}</div>
+                            <div style={{ fontSize: 11, color: L.t4 }}>
+                              {[m.especialidade, m.crm && `CRM: ${m.crm}`].filter(Boolean).join(' · ')}
+                            </div>
+                          </div>
+                          <span style={{ marginLeft: 'auto', fontSize: 11, color: L.t4 }}>Médico →</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

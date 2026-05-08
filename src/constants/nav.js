@@ -63,8 +63,9 @@ export const NAV_ITEMS = [
   {
     group: 'administração',
     items: [
-      { id: 'usuarios',      label: 'Usuários',     icon: '◉', minRole: 'admin_clinica' },
-      { id: 'configuracoes', label: 'Configurações', icon: '⚙', minRole: 'admin_clinica' },
+      { id: 'usuarios',      label: 'Usuários',          icon: '◉', minRole: 'admin_clinica' },
+      { id: 'atividades',    label: 'Log de Atividades', icon: '◎', minRole: 'admin_clinica' },
+      { id: 'configuracoes', label: 'Configurações',     icon: '⚙', minRole: 'admin_clinica' },
     ]
   },
   {
@@ -94,4 +95,5 @@ export const PAGE_TITLES = {
   clientes:       'Clínicas & Hospitais',
   todos_usuarios: 'Todos os Usuários',
   fluxo:          'Painel de Fluxo',
+  atividades:     'Log de Atividades',
 }
