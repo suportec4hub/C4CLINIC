@@ -20,6 +20,71 @@ import PageEstoque from '../pages/PageEstoque.jsx'
 import PageFluxo from '../pages/PageFluxo.jsx'
 import PageAtividades from '../pages/PageAtividades.jsx'
 
+function NotificacoesBanner({ clinicaId, darkMode }) {
+  const [alertas, setAlertas] = useState([])
+  const [dismissed, setDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('c4_dismiss_notif') || '[]') } catch { return [] }
+  })
+
+  useEffect(() => {
+    if (!clinicaId) return
+    async function check() {
+      const hoje = new Date().toISOString().split('T')[0]
+      const novos = []
+
+      const { data: est2 } = await supabase.from('estoque_items').select('nome, quantidade, quantidade_minima').eq('clinica_id', clinicaId)
+      ;(est2 || []).filter(i => i.quantidade_minima != null && i.quantidade <= i.quantidade_minima).forEach(i => {
+        novos.push({ id: `est_${i.nome}`, tipo: 'estoque', msg: `Estoque baixo: ${i.nome} (${i.quantidade} restantes)`, icon: '📦', color: L.orange })
+      })
+
+      const { count: qtdHoje } = await supabase.from('agendamentos').select('id', { count: 'exact', head: true }).eq('clinica_id', clinicaId).gte('data_hora', `${hoje}T00:00:00`).lte('data_hora', `${hoje}T23:59:59`)
+      if (qtdHoje > 0) novos.push({ id: `agenda_${hoje}`, tipo: 'agenda', msg: `${qtdHoje} agendamento${qtdHoje !== 1 ? 's' : ''} hoje`, icon: '📅', color: L.blue })
+
+      const { data: pacs } = await supabase.from('pacientes').select('nome, data_nascimento').eq('clinica_id', clinicaId).eq('ativo', true).not('data_nascimento', 'is', null)
+      const todayMM = (new Date().getMonth() + 1).toString().padStart(2, '0')
+      const todayDD = new Date().getDate().toString().padStart(2, '0')
+      const aniv = (pacs || []).filter(p => {
+        if (!p.data_nascimento) return false
+        const [, mm, dd] = p.data_nascimento.split('-')
+        return mm === todayMM && dd === todayDD
+      })
+      if (aniv.length > 0) novos.push({ id: `aniv_${hoje}`, tipo: 'aniversario', msg: `🎂 ${aniv.map(p => p.nome.split(' ')[0]).join(', ')} faz${aniv.length > 1 ? 'em' : ''} aniversário hoje!`, icon: '🎉', color: L.yellow })
+
+      setAlertas(novos)
+    }
+    check()
+  }, [clinicaId])
+
+  const visiveis = alertas.filter(a => !dismissed.includes(a.id))
+  if (visiveis.length === 0) return null
+
+  function dismiss(id) {
+    const next = [...dismissed, id]
+    setDismissed(next)
+    localStorage.setItem('c4_dismiss_notif', JSON.stringify(next))
+  }
+
+  return (
+    <div style={{ padding: '8px 20px 0' }}>
+      {visiveis.map(a => (
+        <div key={a.id} style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', borderRadius: 10, marginBottom: 6,
+          background: darkMode ? L.surface : '#fffbeb',
+          border: `1px solid ${a.color}30`,
+          borderLeft: `3px solid ${a.color}`,
+          fontSize: 13, color: L.t2,
+          animation: 'up 0.2s ease',
+        }}>
+          <span style={{ fontSize: 15, flexShrink: 0 }}>{a.icon}</span>
+          <span style={{ flex: 1 }}>{a.msg}</span>
+          <button onClick={() => dismiss(a.id)} style={{ color: L.t4, fontSize: 16, padding: '0 4px' }}>×</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const [page, setPage] = useState('dashboard')
   const [collapsed, setCollapsed] = useState(false)
@@ -29,6 +94,8 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const [buscaQuery, setBuscaQuery] = useState('')
   const [buscaResultados, setBuscaResultados] = useState({ pacientes: [], medicos: [] })
   const [buscaLoading, setBuscaLoading] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('c4_dark') === '1')
+  const [novoRapido, setNovoRapido] = useState(false)
   const buscaRef = useRef(null)
   const buscaTimerRef = useRef(null)
 
@@ -37,6 +104,26 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const isAdmin  = isClinicaAdmin(cargo)
   const clinicaNome = profile?.clinicas?.nome || 'C4CLINIC'
   const isClinical = !['c4hub_admin','c4hub'].includes(cargo) || profile?.clinica_id
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    localStorage.setItem('c4_dark', darkMode ? '1' : '0')
+  }, [darkMode])
+
+  useEffect(() => {
+    if (novoRapido) { const t = setTimeout(() => setNovoRapido(false), 1500); return () => clearTimeout(t) }
+  }, [novoRapido])
+
+  useEffect(() => {
+    function handler(e) {
+      const tag = document.activeElement?.tagName
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return
+      if (e.key === '/' && !buscaAberta) { e.preventDefault(); setBuscaAberta(true) }
+      if (e.key === 'n' || e.key === 'N') { setNovoRapido(true) }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [buscaAberta])
 
   useEffect(() => {
     const check = () => {
@@ -258,7 +345,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
     </div>
   )
 
-  const pageProps = { user, profile, cargo, isMaster, isAdmin }
+  const pageProps = { user, profile, cargo, isMaster, isAdmin, nav }
 
   return (
     <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
@@ -309,6 +396,14 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             }}
           >🔍</button>
 
+          <button
+            onClick={() => setDarkMode(d => !d)}
+            title={darkMode ? 'Modo claro' : 'Modo escuro'}
+            style={{ width: 32, height: 32, borderRadius: 8, background: L.hover, display: 'flex', alignItems: 'center', justifyContent: 'center', color: L.t3, fontSize: 15 }}
+          >
+            {darkMode ? '☀' : '🌙'}
+          </button>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: L.t3 }}>
             <div style={{
               width: 7, height: 7, borderRadius: '50%',
@@ -335,6 +430,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
         </header>
 
         <main style={{ flex: 1, overflowY: 'auto', background: L.surface }}>
+          {!isMaster && <NotificacoesBanner clinicaId={profile?.clinica_id} darkMode={darkMode} />}
           <div className="anim-up" key={page} style={{ minHeight: '100%' }}>
             {page === 'dashboard'      && <PageDashboard {...pageProps} />}
             {page === 'pacientes'      && <PagePacientes {...pageProps} />}
@@ -356,6 +452,13 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
           </div>
         </main>
       </div>
+
+      {/* Novo Rápido toast */}
+      {novoRapido && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 300, background: L.teal, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', animation: 'up 0.2s ease' }}>
+          ⌨ Use o botão "+ Novo" na página atual
+        </div>
+      )}
 
       {/* Busca Global */}
       {buscaAberta && (
@@ -404,7 +507,15 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
               {buscaQuery.length < 2 ? (
                 <div style={{ padding: '24px', textAlign: 'center', color: L.t4, fontSize: 13 }}>
-                  Digite pelo menos 2 caracteres para buscar
+                  <div style={{ marginBottom: 14 }}>Digite pelo menos 2 caracteres para buscar</div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {[['N', 'Novo'], ['/', 'Buscar'], ['Esc', 'Fechar']].map(([k, v]) => (
+                      <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: L.t4 }}>
+                        <kbd style={{ fontSize: 10, color: L.t3, border: `1px solid ${L.line}`, borderRadius: 4, padding: '2px 5px', fontFamily: 'monospace', background: L.surface }}>{k}</kbd>
+                        {v}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ) : (buscaResultados.pacientes.length === 0 && buscaResultados.medicos.length === 0 && !buscaLoading) ? (
                 <div style={{ padding: '24px', textAlign: 'center', color: L.t4, fontSize: 13 }}>
