@@ -301,7 +301,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
 
           <button
             onClick={() => setBuscaAberta(true)}
-            title="Busca global"
+            title="Busca global (/)"
             style={{
               width: 32, height: 32, borderRadius: 8, background: L.hover,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -408,7 +408,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
                 </div>
               ) : (buscaResultados.pacientes.length === 0 && buscaResultados.medicos.length === 0 && !buscaLoading) ? (
                 <div style={{ padding: '24px', textAlign: 'center', color: L.t4, fontSize: 13 }}>
-                  Nenhum resultado encontrado
+                  Nenhum resultado para &ldquo;{buscaQuery}&rdquo;
                 </div>
               ) : (
                 <>
