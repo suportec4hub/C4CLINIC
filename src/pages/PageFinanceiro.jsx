@@ -1,10 +1,25 @@
 import { useState, useEffect } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
 
 const TIPOS = ['receita', 'despesa']
-const CATEGORIAS_REC = ['Consulta', 'Procedimento', 'Exame', 'Convênio', 'Particular', 'Outros']
-const CATEGORIAS_DES = ['Salários', 'Aluguel', 'Equipamentos', 'Material', 'Manutenção', 'Marketing', 'Impostos', 'Outros']
+const CATEGORIAS_REC = [
+  'Consulta', 'Retorno', 'Procedimento', 'Cirurgia',
+  'Exame', 'Convênio', 'Particular', 'Plano de Saúde', 'Outros'
+]
+const CATEGORIAS_DES = [
+  // Pessoal
+  'Salários', 'Pró-labore', 'Encargos Trabalhistas', 'Benefícios',
+  // Estrutura
+  'Aluguel', 'Condomínio', 'IPTU', 'Água', 'Energia', 'Internet/Telefone',
+  // Operacional
+  'Material de Escritório', 'Material Médico', 'Medicamentos/Insumos',
+  'Equipamentos', 'Manutenção', 'Limpeza/Higiene',
+  // Administrativo
+  'Marketing/Publicidade', 'Sistemas/Software', 'Contabilidade',
+  'Impostos/Taxas', 'Seguros', 'Outros'
+]
 const FORMAS_PAG = ['dinheiro', 'cartao_credito', 'cartao_debito', 'pix', 'transferencia', 'boleto', 'convenio']
 const FORMAS_LABEL = {
   dinheiro: 'Dinheiro', cartao_credito: 'Cartão Crédito',
@@ -67,6 +82,95 @@ function Field({ label, children }) {
   )
 }
 
+function imprimirRecibo(l, clinicaNome) {
+  const nomeclinica = clinicaNome || 'C4CLINIC'
+  const valorNum = Number(l.valor)
+  const valorFmt = valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const dataFmt = l.data_pagamento
+    ? new Date(l.data_pagamento + 'T12:00:00').toLocaleDateString('pt-BR')
+    : new Date().toLocaleDateString('pt-BR')
+  const numeroRecibo = (l.id || '00000000').slice(0, 8).toUpperCase()
+  const pacienteNome = l.pacientes?.nome || l.paciente_nome || ''
+  const formaPag = FORMAS_LABEL[l.forma_pagamento] || l.forma_pagamento || '—'
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recibo #${numeroRecibo}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Georgia', serif;
+      background: #fff;
+      color: #1a1a1a;
+      padding: 48px;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+    .header { text-align: center; margin-bottom: 32px; border-bottom: 2px solid #1a1a1a; padding-bottom: 20px; }
+    .clinic-name { font-size: 22px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+    .recibo-title { font-size: 36px; font-weight: bold; letter-spacing: 4px; margin: 16px 0 8px; }
+    .recibo-number { font-size: 13px; color: #555; font-family: monospace; }
+    .body { margin: 28px 0; }
+    .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #ccc; font-size: 14px; }
+    .row .label { color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .row .value { font-weight: 600; max-width: 55%; text-align: right; }
+    .valor-destaque {
+      text-align: center; margin: 28px 0;
+      background: #f5f5f5; border: 1px solid #ddd;
+      border-radius: 8px; padding: 20px;
+    }
+    .valor-destaque .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; }
+    .valor-destaque .quantia { font-size: 32px; font-weight: bold; color: #1a1a1a; margin-top: 6px; }
+    .footer { margin-top: 48px; }
+    .assinatura { margin-top: 40px; text-align: center; }
+    .assinatura .linha { border-top: 1px solid #1a1a1a; width: 260px; margin: 0 auto 8px; }
+    .assinatura .texto { font-size: 12px; color: #555; white-space: pre-line; }
+    .obs { font-size: 11px; color: #888; text-align: center; margin-top: 24px; }
+    @media print {
+      body { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="clinic-name">${nomeclinica}</div>
+    <div class="recibo-title">RECIBO</div>
+    <div class="recibo-number">Nº ${numeroRecibo}</div>
+  </div>
+
+  <div class="body">
+    ${pacienteNome ? `<div class="row"><span class="label">Paciente</span><span class="value">${pacienteNome}</span></div>` : ''}
+    <div class="row"><span class="label">Descrição</span><span class="value">${l.descricao || '—'}</span></div>
+    <div class="row"><span class="label">Categoria</span><span class="value">${l.categoria || '—'}</span></div>
+    <div class="row"><span class="label">Forma de Pagamento</span><span class="value">${formaPag}</span></div>
+    <div class="row"><span class="label">Data de Pagamento</span><span class="value">${dataFmt}</span></div>
+  </div>
+
+  <div class="valor-destaque">
+    <div class="label">Valor Recebido</div>
+    <div class="quantia">${valorFmt}</div>
+  </div>
+
+  <div class="footer">
+    <div class="assinatura">
+      <div class="linha"></div>
+      <div class="texto">Assinatura e Carimbo</div>
+    </div>
+    <div class="obs">Documento emitido em ${new Date().toLocaleDateString('pt-BR')} — ${nomeclinica}</div>
+  </div>
+</body>
+</html>`
+
+  const win = window.open('', '_blank', 'width=750,height=900')
+  if (win) {
+    win.document.write(html)
+    win.document.close()
+    win.onload = () => win.print()
+  }
+}
+
 export default function PageFinanceiro({ profile }) {
   const [lancamentos, setLancamentos] = useState([])
   const [pacientes, setPacientes] = useState([])
@@ -79,6 +183,7 @@ export default function PageFinanceiro({ profile }) {
   const [resumo, setResumo] = useState({ receitas: 0, despesas: 0, pendentes: 0 })
 
   const clinicaId = profile?.clinica_id
+  const clinicaNome = profile?.clinicas?.nome || 'C4CLINIC'
 
   useEffect(() => { if (clinicaId) load() }, [clinicaId])
 
@@ -141,6 +246,8 @@ export default function PageFinanceiro({ profile }) {
     await supabase.from('financeiro_lancamentos').update({
       status: 'pago', data_pagamento: new Date().toISOString().split('T')[0]
     }).eq('id', id)
+    const lanc = lancamentos.find(l => l.id === id)
+    if (lanc?.tipo === 'receita') imprimirRecibo({ ...lanc, status: 'pago', data_pagamento: new Date().toISOString().split('T')[0] }, clinicaNome)
     load()
   }
 
@@ -152,10 +259,48 @@ export default function PageFinanceiro({ profile }) {
 
   const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const fmtDt = dt => dt ? new Date(dt + 'T12:00:00').toLocaleDateString('pt-BR') : '—'
+  const fmtDdMm = dt => dt ? new Date(dt + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
+
+  // --- Fluxo de Caixa Diário (mês atual, lançamentos pagos) ---
+  const fluxoData = (() => {
+    const now = new Date()
+    const ano = now.getFullYear()
+    const mes = now.getMonth()
+    const diasNoMes = new Date(ano, mes + 1, 0).getDate()
+
+    const map = {}
+    for (let d = 1; d <= diasNoMes; d++) map[d] = { dia: d, receitas: 0, despesas: 0 }
+
+    lancamentos.forEach(l => {
+      if (l.status !== 'pago' || !l.data_pagamento) return
+      const dt = new Date(l.data_pagamento + 'T12:00:00')
+      if (dt.getFullYear() !== ano || dt.getMonth() !== mes) return
+      const day = dt.getDate()
+      if (!map[day]) return
+      if (l.tipo === 'receita') map[day].receitas += Number(l.valor)
+      else map[day].despesas += Number(l.valor)
+    })
+
+    return Object.values(map)
+  })()
+
+  // --- Alertas de Vencimento (próximos 7 dias, status pendente) ---
+  const alertas = (() => {
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+    const limite = new Date(hoje)
+    limite.setDate(limite.getDate() + 7)
+
+    return lancamentos.filter(l => {
+      if (l.status !== 'pendente' || !l.data_vencimento) return false
+      const dt = new Date(l.data_vencimento + 'T12:00:00')
+      return dt >= hoje && dt <= limite
+    }).sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento))
+  })()
 
   return (
     <div style={{ padding: '24px 28px' }}>
-      {/* Resumo */}
+      {/* Resumo KPIs */}
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24
       }}>
@@ -182,6 +327,92 @@ export default function PageFinanceiro({ profile }) {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Alertas de Vencimento */}
+      {alertas.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: L.t1, marginBottom: 10 }}>
+            ⚠ Vencimentos nos Próximos 7 Dias
+          </div>
+          <div style={{
+            display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6,
+          }}>
+            {alertas.map(l => {
+              const isRec = l.tipo === 'receita'
+              return (
+                <div
+                  key={l.id}
+                  onClick={() => abrirEditar(l)}
+                  style={{
+                    background: isRec ? L.yellowBg : L.redBg,
+                    border: `1px solid ${isRec ? L.yellow : L.red}`,
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    minWidth: 180,
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{
+                    fontSize: 12, fontWeight: 600, color: L.t1,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    maxWidth: 160
+                  }}>{l.descricao || '—'}</div>
+                  <div style={{
+                    fontSize: 14, fontWeight: 700,
+                    color: isRec ? L.green : L.red,
+                    marginTop: 4
+                  }}>{fmt(l.valor)}</div>
+                  <div style={{ fontSize: 11, color: L.t3, marginTop: 2 }}>
+                    Vence {fmtDdMm(l.data_vencimento)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Fluxo de Caixa Diário */}
+      <div style={{
+        background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14,
+        padding: '16px 20px', marginBottom: 20
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: L.t1, marginBottom: 12 }}>
+          Fluxo de Caixa — Mês Atual
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={fluxoData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={L.line} vertical={false} />
+            <XAxis
+              dataKey="dia"
+              tick={{ fontSize: 10, fill: L.t4 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: L.t4 }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={v => v === 0 ? '0' : `${(v / 1000).toFixed(0)}k`}
+              width={36}
+            />
+            <Tooltip
+              formatter={(value, name) => [
+                Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+                name === 'receitas' ? 'Receitas' : 'Despesas'
+              ]}
+              labelFormatter={label => `Dia ${label}`}
+              contentStyle={{
+                fontSize: 12, borderRadius: 8,
+                border: `1px solid ${L.line}`, background: L.bg, color: L.t1
+              }}
+            />
+            <Bar dataKey="receitas" fill={L.green} radius={[3, 3, 0, 0]} maxBarSize={18} />
+            <Bar dataKey="despesas" fill={L.red} radius={[3, 3, 0, 0]} maxBarSize={18} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Toolbar */}
@@ -221,9 +452,9 @@ export default function PageFinanceiro({ profile }) {
       {/* Tabela */}
       <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '60px 1fr 120px 100px 120px 100px 80px',
+          display: 'grid', gridTemplateColumns: '60px 1fr 120px 100px 120px 100px 100px',
           padding: '10px 16px', fontSize: 11, color: L.t4,
-          fontFamily: "'JetBrains Mono', monospace', letterSpacing: '0.3px",
+          fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.3px',
           borderBottom: `1px solid ${L.line}`, background: L.surface
         }}>
           <span>TIPO</span><span>DESCRIÇÃO</span><span>CATEGORIA</span>
@@ -248,7 +479,7 @@ export default function PageFinanceiro({ profile }) {
             const st = STATUS_MAP[l.status] || { label: l.status, color: L.t3, bg: L.surface }
             return (
               <div key={l.id} style={{
-                display: 'grid', gridTemplateColumns: '60px 1fr 120px 100px 120px 100px 80px',
+                display: 'grid', gridTemplateColumns: '60px 1fr 120px 100px 120px 100px 100px',
                 padding: '11px 16px', fontSize: 13, borderBottom: `1px solid ${L.lineSoft}`,
                 transition: 'background 0.12s', cursor: 'pointer'
               }}
@@ -284,12 +515,18 @@ export default function PageFinanceiro({ profile }) {
                     background: st.bg, color: st.color
                   }}>{st.label}</span>
                 </span>
-                <div style={{ display: 'flex', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   {l.status === 'pendente' && (
                     <button onClick={e => { e.stopPropagation(); marcarPago(l.id) }} style={{
                       padding: '4px 7px', borderRadius: 5, background: L.greenBg,
                       color: L.green, fontSize: 11, fontWeight: 600
                     }} title="Marcar como pago">✓</button>
+                  )}
+                  {l.status === 'pago' && isRec && (
+                    <button onClick={e => { e.stopPropagation(); imprimirRecibo(l, clinicaNome) }} style={{
+                      padding: '4px 7px', borderRadius: 5, background: L.blueBg,
+                      color: L.blue, fontSize: 11, fontWeight: 600
+                    }} title="Imprimir recibo">🖨</button>
                   )}
                   <button onClick={e => { e.stopPropagation(); abrirEditar(l) }} style={{
                     padding: '4px 7px', borderRadius: 5, background: L.hover, color: L.t2, fontSize: 11
