@@ -60,6 +60,7 @@ function StatusBadge({ status }) {
   )
 }
 
+// ─── Metas Mensais ────────────────────────────────────────────────────────────
 function MetasMensais({ clinicaId, consultasReais, receitaReal }) {
   const now = new Date()
   const currentMonth = now.getMonth() + 1
@@ -201,6 +202,7 @@ function MetasMensais({ clinicaId, consultasReais, receitaReal }) {
         )}
       </div>
 
+      {/* Modal Definir Metas */}
       {modalOpen && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 100,
@@ -264,10 +266,11 @@ function MetasMensais({ clinicaId, consultasReais, receitaReal }) {
   )
 }
 
+// ─── Aniversariantes ──────────────────────────────────────────────────────────
 function Aniversariantes({ clinicaId }) {
   const [pacientes, setPacientes] = useState([])
   const [loading, setLoading]    = useState(true)
-  const [tab, setTab]            = useState('semana')
+  const [tab, setTab]            = useState('semana') // 'semana' | 'mes'
   const [showAll, setShowAll]    = useState(false)
 
   useEffect(() => {
@@ -301,6 +304,7 @@ function Aniversariantes({ clinicaId }) {
   function isBirthdayInRange(dt, fromDate, toDate) {
     const d = parseNasc(dt)
     const year = today.getFullYear()
+    // Try this year and next year for wrap-around
     for (const y of [year, year + 1]) {
       const bday = new Date(y, d.getMonth(), d.getDate())
       if (bday >= fromDate && bday <= toDate) return true
@@ -318,7 +322,7 @@ function Aniversariantes({ clinicaId }) {
     let a = today.getFullYear() - d.getFullYear()
     const bdayThisYear = new Date(today.getFullYear(), d.getMonth(), d.getDate())
     if (today < bdayThisYear) a--
-    return a + 1
+    return a + 1 // age they're turning
   }
 
   const endOfWeek = new Date(today)
@@ -437,6 +441,7 @@ function Aniversariantes({ clinicaId }) {
   )
 }
 
+// Dashboard para usuários C4HUB Admin — visão global do sistema
 function DashboardMaster({ profile }) {
   const [stats, setStats] = useState({ clinicas: 0, hospitais: 0, usuarios: 0, ativos: 0 })
   const [clientes, setClientes] = useState([])
@@ -543,6 +548,7 @@ function DashboardMaster({ profile }) {
   )
 }
 
+// ─── Acesso Rápido ────────────────────────────────────────────────────────────
 function AcoesRapidas({ nav }) {
   const acoes = [
     { id: 'pacientes',  icon: '◈', label: 'Novo Paciente', cor: L.teal,   bg: L.tealBg },
@@ -574,6 +580,7 @@ function AcoesRapidas({ nav }) {
   )
 }
 
+// Dashboard para usuários de clínica — visão operacional
 function DashboardClinica({ profile, nav }) {
   const [kpis, setKpis] = useState({ hoje: 0, pacientes: 0, receita: 0, novosMes: 0, consultasMes: 0 })
   const [agendamentosHoje, setAgendamentosHoje] = useState([])
@@ -630,6 +637,7 @@ function DashboardClinica({ profile, nav }) {
         consultasMes: consultasMes.count || 0,
       })
 
+      // Gráfico: últimos 7 dias
       const dias = []
       for (let i = 6; i >= 0; i--) {
         const d = new Date(); d.setDate(d.getDate() - i)
@@ -678,6 +686,7 @@ function DashboardClinica({ profile, nav }) {
         </div>
       </div>
 
+      {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }} className="grid-cols-4">
         <KpiCard icon="📅" label="Consultas hoje"  value={kpis.hoje}             sub="agendamentos do dia"    color={L.teal}   bg={L.tealBg} />
         <KpiCard icon="👥" label="Total pacientes" value={kpis.pacientes}        sub="pacientes ativos"       color={L.blue}   bg={L.blueBg} />
@@ -685,14 +694,17 @@ function DashboardClinica({ profile, nav }) {
         <KpiCard icon="🆕" label="Novos pacientes" value={kpis.novosMes}         sub="este mês"               color={L.purple} bg={L.purpleBg} />
       </div>
 
+      {/* Metas do Mês */}
       <MetasMensais
         clinicaId={clinicaId}
         consultasReais={kpis.consultasMes}
         receitaReal={kpis.receita}
       />
 
+      {/* Acesso Rápido */}
       <AcoesRapidas nav={nav} />
 
+      {/* Charts */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
         <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, padding: 20 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: L.t1, marginBottom: 16 }}>
@@ -733,6 +745,7 @@ function DashboardClinica({ profile, nav }) {
         </div>
       </div>
 
+      {/* Agenda de hoje */}
       <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, padding: 20, marginBottom: 20 }}>
         <div style={{ fontWeight: 600, fontSize: 14, color: L.t1, marginBottom: 16 }}>
           Agenda de hoje ({agendamentosHoje.length})
@@ -772,6 +785,7 @@ function DashboardClinica({ profile, nav }) {
         )}
       </div>
 
+      {/* Aniversariantes */}
       <Aniversariantes clinicaId={clinicaId} />
     </div>
   )
