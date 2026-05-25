@@ -67,10 +67,25 @@ function getPeriodRange(periodo) {
   return { isoI: inicio.toISOString(), isoF: fim.toISOString() }
 }
 
+function exportarCSV(data, filename) {
+  const headers = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Status', 'Forma Pagamento']
+  const rows = data.map(l => [
+    l.data_vencimento, l.tipo, l.categoria, l.descricao || '',
+    l.valor, l.status, l.forma_pagamento || ''
+  ])
+  const csv = [headers, ...rows].map(r => r.join(';')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ── Tab: Visão Geral ──────────────────────────────────────────────────────────
 
 function TabVisaoGeral({ clinicaId }) {
   const [dados, setDados] = useState(null)
+  const [finRaw, setFinRaw] = useState([])
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState('mes')
 
@@ -91,7 +106,7 @@ function TabVisaoGeral({ clinicaId }) {
         .eq('clinica_id', clinicaId).gte('data_hora', isoI).lte('data_hora', isoF),
       supabase.from('pacientes').select('sexo, criado_em')
         .eq('clinica_id', clinicaId).gte('criado_em', isoI),
-      supabase.from('financeiro_lancamentos').select('tipo, valor, status, data_vencimento, categoria')
+      supabase.from('financeiro_lancamentos').select('tipo, valor, status, data_vencimento, categoria, descricao, forma_pagamento')
         .eq('clinica_id', clinicaId).gte('data_vencimento', inicio.toISOString().split('T')[0])
         .lte('data_vencimento', fim.toISOString().split('T')[0]),
     ])
@@ -100,6 +115,8 @@ function TabVisaoGeral({ clinicaId }) {
     const consData = cons.data || []
     const pacData = pacs.data || []
     const finData = fin.data || []
+
+    setFinRaw(finData)
 
     const statusCount = {}
     agData.forEach(a => { statusCount[a.status] = (statusCount[a.status] || 0) + 1 })
@@ -144,6 +161,47 @@ function TabVisaoGeral({ clinicaId }) {
     setLoading(false)
   }
 
+  function handleExportarCSV() {
+    exportarCSV(finRaw, `relatorio_financeiro_${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
+  function handleImprimir() {
+    if (!dados) return
+    const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const html = `
+      <html><head><title>Relatório - Visão Geral</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
+        h1 { font-size: 20px; margin-bottom: 4px; }
+        p { color: #666; font-size: 13px; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #f0f0f0; padding: 10px 14px; text-align: left; font-size: 12px; border-bottom: 2px solid #ddd; }
+        td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #eee; }
+        .green { color: #16a34a; font-weight: 700; }
+        .red { color: #dc2626; font-weight: 700; }
+        .blue { color: #2563eb; font-weight: 700; }
+      </style></head><body>
+      <h1>Visão Geral — Relatório Financeiro</h1>
+      <p>Gerado em ${new Date().toLocaleString('pt-BR')} | Período: ${periodo === 'mes' ? 'Este Mês' : periodo === 'trimestre' ? 'Trimestre' : 'Este Ano'}</p>
+      <table>
+        <thead><tr><th>Indicador</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td>Agendamentos</td><td class="blue">${dados.totalAg}</td></tr>
+          <tr><td>Consultas realizadas</td><td class="blue">${dados.totalCons}</td></tr>
+          <tr><td>Novos pacientes</td><td class="blue">${dados.totalPac}</td></tr>
+          <tr><td>Taxa de realização</td><td class="blue">${dados.taxaRealizacao}%</td></tr>
+          <tr><td>Receitas pagas</td><td class="green">${fmt(dados.totalRec)}</td></tr>
+          <tr><td>Despesas pagas</td><td class="red">${fmt(dados.totalDes)}</td></tr>
+          <tr><td><strong>Saldo</strong></td><td class="${dados.totalRec >= dados.totalDes ? 'green' : 'red'}"><strong>${fmt(dados.totalRec - dados.totalDes)}</strong></td></tr>
+        </tbody>
+      </table>
+      </body></html>`
+    const w = window.open('', '_blank')
+    w.document.write(html)
+    w.document.close()
+    w.print()
+  }
+
   const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   const PIE_COLORS = [L.teal, L.blue, L.green, L.yellow, L.red, L.purple, L.orange]
@@ -154,7 +212,25 @@ function TabVisaoGeral({ clinicaId }) {
 
   return (
     <>
-      <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 0 }}>
+        <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          <button onClick={handleExportarCSV} style={{
+            padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+            background: L.tealBg, color: L.teal, border: `1.5px solid ${L.teal}30`,
+            display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          }}>
+            ↓ Exportar CSV
+          </button>
+          <button onClick={handleImprimir} style={{
+            padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+            background: L.surface, color: L.t2, border: `1.5px solid ${L.line}`,
+            display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          }}>
+            ⎙ Imprimir
+          </button>
+        </div>
+      </div>
       {loading ? <Spinner /> : dados && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* KPIs */}
@@ -289,7 +365,6 @@ function TabPorMedico({ clinicaId }) {
 
     const consultas = data || []
 
-    // Group by medico_id
     const map = {}
     consultas.forEach(c => {
       const mid = c.medico_id
@@ -443,7 +518,6 @@ function TabRepasse({ clinicaId }) {
     const medicos = medRes.data || []
     const consultas = consRes.data || []
 
-    // Sum receita per medico
     const receitaMap = {}
     consultas.forEach(c => {
       receitaMap[c.medico_id] = (receitaMap[c.medico_id] || 0) + Number(c.valor || 0)
@@ -560,7 +634,6 @@ function TabRepasse({ clinicaId }) {
                     </td>
                   </tr>
                 ))}
-                {/* Total row */}
                 <tr style={{ background: L.tealBg, borderTop: `2px solid ${L.teal}30` }}>
                   <td colSpan={3} style={{ padding: '12px 14px', fontWeight: 700, fontSize: 13, color: L.teal }}>
                     TOTAL
@@ -582,12 +655,636 @@ function TabRepasse({ clinicaId }) {
   )
 }
 
+// ── Tab: DRE ─────────────────────────────────────────────────────────────────
+
+function TabDRE({ clinicaId }) {
+  const [dados, setDados] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [periodo, setPeriodo] = useState('mes')
+
+  useEffect(() => { if (clinicaId) load() }, [clinicaId, periodo])
+
+  async function load() {
+    setLoading(true)
+    const { isoI, isoF } = getPeriodRange(periodo)
+    const inicio = new Date(isoI)
+    const fim = new Date(isoF)
+
+    const { data: lancamentos } = await supabase
+      .from('financeiro_lancamentos')
+      .select('tipo, valor, status, data_vencimento, categoria')
+      .eq('clinica_id', clinicaId)
+      .gte('data_vencimento', inicio.toISOString().split('T')[0])
+      .lte('data_vencimento', fim.toISOString().split('T')[0])
+
+    const todos = lancamentos || []
+
+    const receitas = todos.filter(f => f.tipo === 'receita' && f.status === 'pago')
+    const deducoes = todos.filter(f => f.tipo === 'receita' && f.status === 'cancelado')
+    const despesas = todos.filter(f => f.tipo === 'despesa' && f.status === 'pago')
+    const despesasPendentes = todos.filter(f => f.tipo === 'despesa' && f.status === 'pendente')
+
+    function groupByCategoria(arr) {
+      const map = {}
+      arr.forEach(f => {
+        const cat = f.categoria || 'Sem categoria'
+        map[cat] = (map[cat] || 0) + Number(f.valor)
+      })
+      return Object.entries(map).map(([categoria, valor]) => ({ categoria, valor })).sort((a, b) => b.valor - a.valor)
+    }
+
+    const receitasPorCat = groupByCategoria(receitas)
+    const deducoesPorCat = groupByCategoria(deducoes)
+    const despesasPorCat = groupByCategoria(despesas)
+
+    const totalReceitas = receitas.reduce((s, f) => s + Number(f.valor), 0)
+    const totalDeducoes = deducoes.reduce((s, f) => s + Number(f.valor), 0)
+    const receitaLiquida = totalReceitas - totalDeducoes
+    const totalDespesas = despesas.reduce((s, f) => s + Number(f.valor), 0)
+    const resultado = receitaLiquida - totalDespesas
+
+    // Build bar chart: group by month (for ano) or by week (for mes)
+    let barData = []
+    if (periodo === 'ano') {
+      barData = MESES.map((mes, i) => {
+        const mesRec = todos.filter(f => {
+          const d = new Date(f.data_vencimento + 'T12:00:00')
+          return d.getMonth() === i && f.tipo === 'receita' && f.status === 'pago'
+        }).reduce((s, f) => s + Number(f.valor), 0)
+        const mesDes = todos.filter(f => {
+          const d = new Date(f.data_vencimento + 'T12:00:00')
+          return d.getMonth() === i && f.tipo === 'despesa' && f.status === 'pago'
+        }).reduce((s, f) => s + Number(f.valor), 0)
+        return { label: mes, receitas: mesRec, despesas: mesDes }
+      })
+    } else {
+      // Group by week of the period
+      const weekMap = {}
+      todos.forEach(f => {
+        const d = new Date(f.data_vencimento + 'T12:00:00')
+        const weekStart = new Date(d)
+        weekStart.setDate(d.getDate() - d.getDay())
+        const key = weekStart.toISOString().slice(0, 10)
+        if (!weekMap[key]) weekMap[key] = { receitas: 0, despesas: 0 }
+        if (f.tipo === 'receita' && f.status === 'pago') weekMap[key].receitas += Number(f.valor)
+        if (f.tipo === 'despesa' && f.status === 'pago') weekMap[key].despesas += Number(f.valor)
+      })
+      barData = Object.entries(weekMap).sort(([a], [b]) => a.localeCompare(b)).map(([key, v]) => ({
+        label: key.slice(5),
+        receitas: v.receitas,
+        despesas: v.despesas,
+      }))
+    }
+
+    setDados({
+      receitasPorCat, deducoesPorCat, despesasPorCat,
+      totalReceitas, totalDeducoes, receitaLiquida, totalDespesas, resultado,
+      barData,
+      totalDespesasPendentes: despesasPendentes.reduce((s, f) => s + Number(f.valor), 0),
+    })
+    setLoading(false)
+  }
+
+  function handleImprimirDRE() {
+    if (!dados) return
+    const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const periodoLabel = periodo === 'mes' ? 'Este Mês' : periodo === 'trimestre' ? 'Trimestre' : 'Este Ano'
+
+    const catRows = (arr, color) =>
+      arr.map(r => `<tr><td style="padding:7px 14px;font-size:13px;color:#555;padding-left:32px;">${r.categoria}</td><td style="padding:7px 14px;font-size:13px;text-align:right;color:${color};font-family:monospace;">${fmt(r.valor)}</td></tr>`).join('')
+
+    const html = `
+      <html><head><title>DRE</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
+        h1 { font-size: 20px; margin-bottom: 4px; }
+        p { color: #666; font-size: 13px; margin-top: 0; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        tr.section { background: #f5f5f5; }
+        tr.section td { padding: 9px 14px; font-size: 13px; font-weight: 700; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+        tr.subtotal td { padding: 10px 14px; font-size: 14px; font-weight: 700; border-bottom: 2px solid #ccc; }
+        tr.resultado td { padding: 14px 14px; font-size: 16px; font-weight: 700; background: #f0f7f0; border-top: 2px solid #aaa; }
+        @media print { button { display: none; } }
+      </style></head><body>
+      <h1>DRE — Demonstração do Resultado do Exercício</h1>
+      <p>Período: ${periodoLabel} | Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+      <table>
+        <tr class="section"><td colspan="2">(+) RECEITAS BRUTAS</td></tr>
+        ${catRows(dados.receitasPorCat, '#16a34a')}
+        <tr class="subtotal"><td>Total Receitas Brutas</td><td style="text-align:right;color:#16a34a;font-family:monospace;">${fmt(dados.totalReceitas)}</td></tr>
+
+        <tr class="section"><td colspan="2">(−) DEDUÇÕES / CANCELAMENTOS</td></tr>
+        ${catRows(dados.deducoesPorCat, '#dc2626')}
+        <tr class="subtotal"><td>Total Deduções</td><td style="text-align:right;color:#dc2626;font-family:monospace;">(${fmt(dados.totalDeducoes)})</td></tr>
+
+        <tr class="subtotal" style="background:#e0f2fe;"><td><strong>(=) RECEITA LÍQUIDA</strong></td><td style="text-align:right;color:#0369a1;font-family:monospace;"><strong>${fmt(dados.receitaLiquida)}</strong></td></tr>
+
+        <tr class="section"><td colspan="2">(−) DESPESAS OPERACIONAIS</td></tr>
+        ${catRows(dados.despesasPorCat, '#dc2626')}
+        <tr class="subtotal"><td>Total Despesas</td><td style="text-align:right;color:#dc2626;font-family:monospace;">(${fmt(dados.totalDespesas)})</td></tr>
+
+        <tr class="resultado">
+          <td>(=) RESULTADO OPERACIONAL</td>
+          <td style="text-align:right;color:${dados.resultado >= 0 ? '#16a34a' : '#dc2626'};font-family:monospace;">${fmt(dados.resultado)}</td>
+        </tr>
+      </table>
+      </body></html>`
+
+    const w = window.open('', '_blank')
+    w.document.write(html)
+    w.document.close()
+    w.print()
+  }
+
+  const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const DRE_ROW_SECTION = { padding: '9px 14px', fontWeight: 700, fontSize: 13, color: L.t1, background: L.surface, borderTop: `1px solid ${L.line}`, borderBottom: `1px solid ${L.line}` }
+  const DRE_ROW_CAT = { padding: '8px 14px 8px 32px', fontSize: 13, color: L.t2, borderBottom: `1px solid ${L.line}` }
+  const DRE_ROW_SUBTOTAL = { padding: '10px 14px', fontWeight: 700, fontSize: 13, borderBottom: `2px solid ${L.line}` }
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 0 }}>
+        <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} />
+        <button onClick={handleImprimirDRE} style={{
+          padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+          background: L.surface, color: L.t2, border: `1.5px solid ${L.line}`,
+          marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+        }}>
+          ⎙ Imprimir DRE
+        </button>
+      </div>
+
+      {loading ? <Spinner /> : dados && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* DRE Table */}
+          <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                {/* Receitas Brutas */}
+                <tr>
+                  <td colSpan={2} style={DRE_ROW_SECTION}>(+) RECEITAS BRUTAS</td>
+                </tr>
+                {dados.receitasPorCat.map((r, i) => (
+                  <tr key={i}>
+                    <td style={DRE_ROW_CAT}>{r.categoria}</td>
+                    <td style={{ ...DRE_ROW_CAT, textAlign: 'right', color: L.green, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.valor)}</td>
+                  </tr>
+                ))}
+                {dados.receitasPorCat.length === 0 && (
+                  <tr><td colSpan={2} style={{ ...DRE_ROW_CAT, color: L.t4, fontStyle: 'italic' }}>Sem receitas no período</td></tr>
+                )}
+                <tr>
+                  <td style={{ ...DRE_ROW_SUBTOTAL, color: L.t1 }}>Total Receitas Brutas</td>
+                  <td style={{ ...DRE_ROW_SUBTOTAL, textAlign: 'right', color: L.green, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(dados.totalReceitas)}</td>
+                </tr>
+
+                {/* Deduções */}
+                <tr>
+                  <td colSpan={2} style={DRE_ROW_SECTION}>(−) DEDUÇÕES / CANCELAMENTOS</td>
+                </tr>
+                {dados.deducoesPorCat.map((r, i) => (
+                  <tr key={i}>
+                    <td style={DRE_ROW_CAT}>{r.categoria}</td>
+                    <td style={{ ...DRE_ROW_CAT, textAlign: 'right', color: L.red, fontFamily: "'JetBrains Mono', monospace" }}>({fmt(r.valor)})</td>
+                  </tr>
+                ))}
+                {dados.deducoesPorCat.length === 0 && (
+                  <tr><td colSpan={2} style={{ ...DRE_ROW_CAT, color: L.t4, fontStyle: 'italic' }}>Sem cancelamentos no período</td></tr>
+                )}
+                <tr>
+                  <td style={{ ...DRE_ROW_SUBTOTAL, color: L.t1 }}>Total Deduções</td>
+                  <td style={{ ...DRE_ROW_SUBTOTAL, textAlign: 'right', color: L.red, fontFamily: "'JetBrains Mono', monospace" }}>({fmt(dados.totalDeducoes)})</td>
+                </tr>
+
+                {/* Receita Líquida */}
+                <tr style={{ background: L.blueBg || L.tealBg }}>
+                  <td style={{ padding: '12px 14px', fontWeight: 700, fontSize: 14, color: L.blue || L.teal, borderBottom: `2px solid ${L.line}` }}>
+                    (=) RECEITA LÍQUIDA
+                  </td>
+                  <td style={{ padding: '12px 14px', fontWeight: 700, fontSize: 14, textAlign: 'right', color: L.blue || L.teal, fontFamily: "'JetBrains Mono', monospace", borderBottom: `2px solid ${L.line}` }}>
+                    {fmt(dados.receitaLiquida)}
+                  </td>
+                </tr>
+
+                {/* Despesas Operacionais */}
+                <tr>
+                  <td colSpan={2} style={DRE_ROW_SECTION}>(−) DESPESAS OPERACIONAIS</td>
+                </tr>
+                {dados.despesasPorCat.map((r, i) => (
+                  <tr key={i}>
+                    <td style={DRE_ROW_CAT}>{r.categoria}</td>
+                    <td style={{ ...DRE_ROW_CAT, textAlign: 'right', color: L.red, fontFamily: "'JetBrains Mono', monospace" }}>({fmt(r.valor)})</td>
+                  </tr>
+                ))}
+                {dados.despesasPorCat.length === 0 && (
+                  <tr><td colSpan={2} style={{ ...DRE_ROW_CAT, color: L.t4, fontStyle: 'italic' }}>Sem despesas no período</td></tr>
+                )}
+                <tr>
+                  <td style={{ ...DRE_ROW_SUBTOTAL, color: L.t1 }}>Total Despesas Operacionais</td>
+                  <td style={{ ...DRE_ROW_SUBTOTAL, textAlign: 'right', color: L.red, fontFamily: "'JetBrains Mono', monospace" }}>({fmt(dados.totalDespesas)})</td>
+                </tr>
+
+                {/* Resultado */}
+                <tr style={{ background: dados.resultado >= 0 ? L.greenBg : L.redBg }}>
+                  <td style={{ padding: '16px 14px', fontWeight: 700, fontSize: 16, color: dados.resultado >= 0 ? L.green : L.red }}>
+                    (=) RESULTADO OPERACIONAL
+                  </td>
+                  <td style={{ padding: '16px 14px', fontWeight: 700, fontSize: 16, textAlign: 'right', color: dados.resultado >= 0 ? L.green : L.red, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {fmt(dados.resultado)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pending note */}
+          {dados.totalDespesasPendentes > 0 && (
+            <div style={{
+              background: L.yellowBg || L.surface, border: `1px solid ${L.yellowBd || L.line}`,
+              borderRadius: 10, padding: '12px 16px', fontSize: 13, color: L.yellow || L.t2,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ fontWeight: 700 }}>Atenção:</span>
+              Há {fmt(dados.totalDespesasPendentes)} em despesas pendentes não incluídas no resultado acima.
+            </div>
+          )}
+
+          {/* Bar Chart */}
+          <Card title={periodo === 'ano' ? 'Receitas vs Despesas por Mês' : 'Receitas vs Despesas por Semana'}>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={dados.barData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={L.line} vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: L.t4 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: L.t4 }} axisLine={false} tickLine={false}
+                  tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 8, fontSize: 12 }}
+                  formatter={(v, n) => [fmt(v), n === 'receitas' ? 'Receitas' : 'Despesas']}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="receitas" fill={L.green} radius={[4, 4, 0, 0]} name="Receitas" />
+                <Bar dataKey="despesas" fill={L.red} radius={[4, 4, 0, 0]} name="Despesas" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Tab: Procedimentos ────────────────────────────────────────────────────────
+
+function TabProcedimentos({ clinicaId }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [periodo, setPeriodo] = useState('mes')
+  const [semCatalogo, setSemCatalogo] = useState(false)
+
+  useEffect(() => { if (clinicaId) load() }, [clinicaId, periodo])
+
+  async function load() {
+    setLoading(true)
+    const { isoI, isoF } = getPeriodRange(periodo)
+
+    const [procRes, consRes] = await Promise.all([
+      supabase.from('procedimentos').select('id, nome, valor').eq('clinica_id', clinicaId),
+      supabase.from('consultas').select('tipo, valor, data_hora')
+        .eq('clinica_id', clinicaId)
+        .gte('data_hora', isoI)
+        .lte('data_hora', isoF),
+    ])
+
+    const procedimentos = procRes.data || []
+    const consultas = consRes.data || []
+
+    if (procedimentos.length === 0) {
+      setSemCatalogo(true)
+      setLoading(false)
+      return
+    }
+    setSemCatalogo(false)
+
+    // Count by tipo (tipo in consultas matches procedimento nome)
+    const countMap = {}
+    const receitaMap = {}
+    consultas.forEach(c => {
+      const tipo = c.tipo || ''
+      countMap[tipo] = (countMap[tipo] || 0) + 1
+      receitaMap[tipo] = (receitaMap[tipo] || 0) + Number(c.valor || 0)
+    })
+
+    const result = procedimentos.map(p => ({
+      nome: p.nome,
+      valorTabela: Number(p.valor || 0),
+      usos: countMap[p.nome] || 0,
+      receita: receitaMap[p.nome] || 0,
+    })).sort((a, b) => b.usos - a.usos)
+
+    setRows(result)
+    setLoading(false)
+  }
+
+  const fmt = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const maxUsos = rows.length > 0 ? Math.max(...rows.map(r => r.usos)) : 0
+
+  return (
+    <>
+      <PeriodSelector periodo={periodo} setPeriodo={setPeriodo} />
+      {loading ? <Spinner /> : semCatalogo ? (
+        <div style={{
+          background: L.tealBg, border: `1px solid ${L.teal}30`, borderRadius: 14,
+          padding: '40px 24px', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: L.teal, marginBottom: 8 }}>
+            Tabela de procedimentos vazia
+          </div>
+          <div style={{ fontSize: 13, color: L.t3 }}>
+            Configure a tabela de procedimentos em Configurações
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Top chart */}
+          {rows.filter(r => r.usos > 0).length > 0 && (
+            <Card title="Top Procedimentos por Uso">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={rows.filter(r => r.usos > 0).slice(0, 8)} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke={L.line} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: L.t4 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 11, fill: L.t4 }} axisLine={false} tickLine={false} width={140} />
+                  <Tooltip contentStyle={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="usos" fill={L.teal} radius={[0, 4, 4, 0]} name="Usos" />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {/* Ranked table */}
+          <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: L.surface }}>
+                    {['#', 'PROCEDIMENTO', 'VALOR TABELA', 'USOS NO PERÍODO', 'RECEITA GERADA'].map(h => (
+                      <th key={h} style={{
+                        padding: '10px 14px', textAlign: h === '#' || h === 'USOS NO PERÍODO' ? 'center' : 'left',
+                        fontSize: 11, color: L.t4, fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: '0.3px', whiteSpace: 'nowrap',
+                        borderBottom: `2px solid ${L.line}`,
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} style={{
+                      background: i === 0 && r.usos > 0 ? L.tealBg : (i % 2 === 0 ? L.bg : L.surface),
+                      borderBottom: `1px solid ${L.line}`,
+                    }}>
+                      <td style={{ padding: '11px 14px', textAlign: 'center', fontSize: 12, color: L.t4, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {i + 1}
+                      </td>
+                      <td style={{ padding: '11px 14px', fontWeight: 600, fontSize: 13, color: L.t1 }}>
+                        {i === 0 && r.usos > 0 && <span style={{ color: L.teal, marginRight: 6, fontSize: 11 }}>★</span>}
+                        {r.nome}
+                      </td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, color: L.t2, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {fmt(r.valorTabela)}
+                      </td>
+                      <td style={{ padding: '11px 14px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: r.usos > 0 ? L.teal : L.t4 }}>
+                        {r.usos}
+                      </td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, color: r.receita > 0 ? L.green : L.t4, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {r.receita > 0 ? fmt(r.receita) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Tab: Pacientes ────────────────────────────────────────────────────────────
+
+function TabPacientes({ clinicaId }) {
+  const [dados, setDados] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { if (clinicaId) load() }, [clinicaId])
+
+  async function load() {
+    setLoading(true)
+
+    const hoje = new Date()
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString()
+    const dozeAtras = new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString()
+
+    const [pacRes, agRes] = await Promise.all([
+      supabase.from('pacientes').select('id, sexo, data_nascimento, criado_em, ativo').eq('clinica_id', clinicaId),
+      supabase.from('agendamentos').select('paciente_id, convenio_id, convenios(nome)').eq('clinica_id', clinicaId),
+    ])
+
+    const pacientes = pacRes.data || []
+    const agendamentos = agRes.data || []
+
+    const ativos = pacientes.filter(p => p.ativo !== false)
+    const novosMes = pacientes.filter(p => p.criado_em >= inicioMes)
+
+    // Average age
+    let totalIdade = 0, comIdade = 0
+    pacientes.forEach(p => {
+      if (p.data_nascimento) {
+        const nascimento = new Date(p.data_nascimento)
+        const idade = Math.floor((hoje - nascimento) / (365.25 * 24 * 60 * 60 * 1000))
+        totalIdade += idade
+        comIdade++
+      }
+    })
+    const idadeMedia = comIdade > 0 ? Math.round(totalIdade / comIdade) : null
+
+    // Sexo distribution
+    const sexoMap = {}
+    pacientes.forEach(p => {
+      const s = p.sexo || 'Não informado'
+      sexoMap[s] = (sexoMap[s] || 0) + 1
+    })
+    const sexoChart = Object.entries(sexoMap).map(([name, value]) => ({ name, value }))
+
+    // Registration by month (last 12)
+    const registroMes = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+      const label = MESES[d.getMonth()] + '/' + String(d.getFullYear()).slice(2)
+      const count = pacientes.filter(p => {
+        if (!p.criado_em) return false
+        const c = new Date(p.criado_em)
+        return c.getFullYear() === d.getFullYear() && c.getMonth() === d.getMonth()
+      }).length
+      registroMes.push({ label, count })
+    }
+
+    // By convenio
+    const convenioMap = {}
+    agendamentos.forEach(a => {
+      const nome = a.convenios?.nome || 'Particular'
+      if (!convenioMap[nome]) convenioMap[nome] = new Set()
+      if (a.paciente_id) convenioMap[nome].add(a.paciente_id)
+    })
+    const convenioRows = Object.entries(convenioMap)
+      .map(([convenio, set]) => ({ convenio, pacientes: set.size }))
+      .sort((a, b) => b.pacientes - a.pacientes)
+
+    setDados({
+      totalAtivos: ativos.length,
+      novosMes: novosMes.length,
+      idadeMedia,
+      sexoChart,
+      registroMes,
+      convenioRows,
+    })
+    setLoading(false)
+  }
+
+  const PIE_COLORS = [L.teal, L.pink || L.purple, L.blue, L.yellow, L.orange]
+
+  return (
+    <>
+      {loading ? <Spinner /> : dados && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            {[
+              { label: 'Pacientes ativos', value: dados.totalAtivos, color: L.teal, bg: L.tealBg, icon: '👥' },
+              { label: 'Novos este mês', value: dados.novosMes, color: L.green, bg: L.greenBg, icon: '✦' },
+              { label: 'Idade média', value: dados.idadeMedia !== null ? `${dados.idadeMedia} anos` : '—', color: L.blue, bg: L.blueBg, icon: '📋' },
+              {
+                label: 'Masc. / Fem.',
+                value: (() => {
+                  const m = dados.sexoChart.find(s => /masc/i.test(s.name))?.value || 0
+                  const f = dados.sexoChart.find(s => /fem/i.test(s.name))?.value || 0
+                  return `${m} / ${f}`
+                })(),
+                color: L.purple, bg: L.purpleBg, icon: '⚤',
+              },
+            ].map(k => (
+              <div key={k.label} style={{
+                background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14,
+                padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'center'
+              }}>
+                <div style={{
+                  width: 42, height: 42, borderRadius: 11, background: k.bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20
+                }}>{k.icon}</div>
+                <div>
+                  <div style={{ fontSize: 12, color: L.t3 }}>{k.label}</div>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 20, color: k.color }}>
+                    {k.value}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Charts */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <Card title="Distribuição por Sexo">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={dados.sexoChart} cx="50%" cy="50%" innerRadius={50} outerRadius={90}
+                    dataKey="value" nameKey="name" paddingAngle={2}
+                  >
+                    {dados.sexoChart.map((entry, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 8, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </Card>
+
+            <Card title="Novos Pacientes — Últimos 12 Meses">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={dados.registroMes}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={L.line} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: L.t4 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: L.t4 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="count" fill={L.teal} radius={[4, 4, 0, 0]} name="Pacientes" />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
+
+          {/* By convenio */}
+          {dados.convenioRows.length > 0 && (
+            <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 20px', fontWeight: 600, fontSize: 14, color: L.t1, borderBottom: `1px solid ${L.line}` }}>
+                Pacientes por Convênio
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: L.surface }}>
+                    {['CONVÊNIO', 'PACIENTES', 'PARTICIPAÇÃO'].map(h => (
+                      <th key={h} style={{
+                        padding: '10px 20px', textAlign: h === 'CONVÊNIO' ? 'left' : 'center',
+                        fontSize: 11, color: L.t4, fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: '0.3px', borderBottom: `2px solid ${L.line}`,
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {dados.convenioRows.map((r, i) => {
+                    const total = dados.convenioRows.reduce((s, x) => s + x.pacientes, 0)
+                    const pct = total > 0 ? Math.round((r.pacientes / total) * 100) : 0
+                    return (
+                      <tr key={i} style={{ background: i % 2 === 0 ? L.bg : L.surface, borderBottom: `1px solid ${L.line}` }}>
+                        <td style={{ padding: '11px 20px', fontWeight: 600, fontSize: 13, color: L.t1 }}>{r.convenio}</td>
+                        <td style={{ padding: '11px 20px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: L.teal }}>
+                          {r.pacientes}
+                        </td>
+                        <td style={{ padding: '11px 20px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                            <div style={{
+                              width: 80, height: 6, borderRadius: 3, background: L.line, overflow: 'hidden'
+                            }}>
+                              <div style={{ width: `${pct}%`, height: '100%', background: L.teal, borderRadius: 3 }} />
+                            </div>
+                            <span style={{ fontSize: 12, color: L.t2, fontFamily: "'JetBrains Mono', monospace" }}>
+                              {pct}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: 'geral', label: 'Visão Geral' },
   { id: 'pormedico', label: 'Por Médico' },
   { id: 'repasse', label: 'Repasse Médico' },
+  { id: 'dre', label: 'DRE' },
+  { id: 'procedimentos', label: 'Procedimentos' },
+  { id: 'pacientes', label: 'Pacientes' },
 ]
 
 export default function PageRelatorios({ profile }) {
@@ -600,6 +1297,7 @@ export default function PageRelatorios({ profile }) {
       <div style={{
         display: 'flex', gap: 4, marginBottom: 28,
         borderBottom: `2px solid ${L.line}`, paddingBottom: 0,
+        flexWrap: 'wrap',
       }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -611,6 +1309,7 @@ export default function PageRelatorios({ profile }) {
             borderBottom: tab === t.id ? `2px solid ${L.teal}` : '2px solid transparent',
             marginBottom: -2,
             transition: 'all 0.15s',
+            cursor: 'pointer',
           }}>
             {t.label}
           </button>
@@ -620,6 +1319,9 @@ export default function PageRelatorios({ profile }) {
       {tab === 'geral' && <TabVisaoGeral clinicaId={clinicaId} />}
       {tab === 'pormedico' && <TabPorMedico clinicaId={clinicaId} />}
       {tab === 'repasse' && <TabRepasse clinicaId={clinicaId} />}
+      {tab === 'dre' && <TabDRE clinicaId={clinicaId} />}
+      {tab === 'procedimentos' && <TabProcedimentos clinicaId={clinicaId} />}
+      {tab === 'pacientes' && <TabPacientes clinicaId={clinicaId} />}
     </div>
   )
 }
