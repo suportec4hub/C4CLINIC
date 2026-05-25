@@ -43,6 +43,7 @@ export const NAV_ITEMS = [
     group: 'clínica',
     items: [
       { id: 'pacientes',  label: 'Pacientes',  icon: '◈' },
+      { id: 'prontuario', label: 'Prontuário', icon: '⊕' },
       { id: 'triagem',    label: 'Triagem',    icon: '♡' },
       { id: 'fluxo',     label: 'Fluxo de Atendimento', icon: '⟳' },
       { id: 'agenda',     label: 'Agenda',     icon: '◷' },
@@ -54,10 +55,11 @@ export const NAV_ITEMS = [
   {
     group: 'gestão',
     items: [
-      { id: 'convenios',  label: 'Convênios',  icon: '⊡' },
-      { id: 'financeiro', label: 'Financeiro', icon: '◬' },
-      { id: 'estoque',    label: 'Estoque',    icon: '▣' },
-      { id: 'relatorios', label: 'Relatórios', icon: '▤' },
+      { id: 'convenios',   label: 'Convênios',   icon: '⊡' },
+      { id: 'financeiro',  label: 'Financeiro',  icon: '◬' },
+      { id: 'estoque',     label: 'Estoque',     icon: '▣' },
+      { id: 'relatorios',  label: 'Relatórios',  icon: '▤' },
+      { id: 'comunicacao', label: 'Comunicação', icon: '◌' },
     ]
   },
   {
@@ -96,4 +98,6 @@ export const PAGE_TITLES = {
   todos_usuarios: 'Todos os Usuários',
   fluxo:          'Painel de Fluxo',
   atividades:     'Log de Atividades',
+  prontuario:     'Prontuário Eletrônico',
+  comunicacao:    'Comunicação com Pacientes',
 }

@@ -19,6 +19,8 @@ import PageDocumentos from '../pages/PageDocumentos.jsx'
 import PageEstoque from '../pages/PageEstoque.jsx'
 import PageFluxo from '../pages/PageFluxo.jsx'
 import PageAtividades from '../pages/PageAtividades.jsx'
+import PageProntuario from '../pages/PageProntuario.jsx'
+import PageComunicacao from '../pages/PageComunicacao.jsx'
 
 function NotificacoesBanner({ clinicaId, darkMode }) {
   const [alertas, setAlertas] = useState([])
@@ -449,6 +451,8 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'estoque'        && <PageEstoque {...pageProps} />}
             {page === 'fluxo'          && <PageFluxo {...pageProps} />}
             {page === 'atividades'     && <PageAtividades {...pageProps} />}
+            {page === 'prontuario'     && <PageProntuario {...pageProps} />}
+            {page === 'comunicacao'    && <PageComunicacao {...pageProps} />}
           </div>
         </main>
       </div>
