@@ -97,7 +97,7 @@ function imprimirRecibo(l, clinicaNome) {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Recibo #${"${numeroRecibo}"}</title>
+  <title>Recibo #${numeroRecibo}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -135,22 +135,22 @@ function imprimirRecibo(l, clinicaNome) {
 </head>
 <body>
   <div class="header">
-    <div class="clinic-name">${"${nomeclinica}"}</div>
+    <div class="clinic-name">${nomeclinica}</div>
     <div class="recibo-title">RECIBO</div>
-    <div class="recibo-number">Nº ${"${numeroRecibo}"}</div>
+    <div class="recibo-number">Nº ${numeroRecibo}</div>
   </div>
 
   <div class="body">
-    ${"${pacienteNome ? `<div class=\"row\"><span class=\"label\">Paciente</span><span class=\"value\">${pacienteNome}</span></div>` : ''}"}
-    <div class="row"><span class="label">Descrição</span><span class="value">${"${l.descricao || '—'}"}</span></div>
-    <div class="row"><span class="label">Categoria</span><span class="value">${"${l.categoria || '—'}"}</span></div>
-    <div class="row"><span class="label">Forma de Pagamento</span><span class="value">${"${formaPag}"}</span></div>
-    <div class="row"><span class="label">Data de Pagamento</span><span class="value">${"${dataFmt}"}</span></div>
+    ${pacienteNome ? `<div class="row"><span class="label">Paciente</span><span class="value">${pacienteNome}</span></div>` : ''}
+    <div class="row"><span class="label">Descrição</span><span class="value">${l.descricao || '—'}</span></div>
+    <div class="row"><span class="label">Categoria</span><span class="value">${l.categoria || '—'}</span></div>
+    <div class="row"><span class="label">Forma de Pagamento</span><span class="value">${formaPag}</span></div>
+    <div class="row"><span class="label">Data de Pagamento</span><span class="value">${dataFmt}</span></div>
   </div>
 
   <div class="valor-destaque">
     <div class="label">Valor Recebido</div>
-    <div class="quantia">${"${valorFmt}"}</div>
+    <div class="quantia">${valorFmt}</div>
   </div>
 
   <div class="footer">
@@ -158,7 +158,7 @@ function imprimirRecibo(l, clinicaNome) {
       <div class="linha"></div>
       <div class="texto">Assinatura e Carimbo</div>
     </div>
-    <div class="obs">Documento emitido em ${"${new Date().toLocaleDateString('pt-BR')}"} — ${"${nomeclinica}"}</div>
+    <div class="obs">Documento emitido em ${new Date().toLocaleDateString('pt-BR')} — ${nomeclinica}</div>
   </div>
 </body>
 </html>`
@@ -189,6 +189,9 @@ export default function PageFinanceiro({ profile }) {
 
   async function load() {
     setLoading(true)
+    const mesAtual = new Date()
+    const inicio = new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1).toISOString()
+
     const [lancs, pacs, convs] = await Promise.all([
       supabase.from('financeiro_lancamentos')
         .select('*, pacientes(nome), convenios(nome)')
@@ -451,7 +454,7 @@ export default function PageFinanceiro({ profile }) {
         <div style={{
           display: 'grid', gridTemplateColumns: '60px 1fr 120px 100px 120px 100px 100px',
           padding: '10px 16px', fontSize: 11, color: L.t4,
-          fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.3px',
+          fontFamily: "'JetBrains Mono', monospace', letterSpacing: '0.3px",
           borderBottom: `1px solid ${L.line}`, background: L.surface
         }}>
           <span>TIPO</span><span>DESCRIÇÃO</span><span>CATEGORIA</span>
