@@ -21,6 +21,17 @@ import PageFluxo from '../pages/PageFluxo.jsx'
 import PageAtividades from '../pages/PageAtividades.jsx'
 import PageProntuario from '../pages/PageProntuario.jsx'
 import PageComunicacao from '../pages/PageComunicacao.jsx'
+import PageFarmacia from '../pages/PageFarmacia.jsx'
+import PageInternacao from '../pages/PageInternacao.jsx'
+import PageCirurgia from '../pages/PageCirurgia.jsx'
+import PageLaboratorio from '../pages/PageLaboratorio.jsx'
+import PageNFSe from '../pages/PageNFSe.jsx'
+import PageNPS from '../pages/PageNPS.jsx'
+import PageFaturamento from '../pages/PageFaturamento.jsx'
+import PagePlanoTratamento from '../pages/PagePlanoTratamento.jsx'
+import PageProtocolos from '../pages/PageProtocolos.jsx'
+import PageRH from '../pages/PageRH.jsx'
+import PageSalas from '../pages/PageSalas.jsx'
 
 function NotificacoesBanner({ clinicaId, darkMode }) {
   const [alertas, setAlertas] = useState([])
@@ -453,6 +464,17 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'atividades'     && <PageAtividades {...pageProps} />}
             {page === 'prontuario'     && <PageProntuario {...pageProps} />}
             {page === 'comunicacao'    && <PageComunicacao {...pageProps} />}
+            {page === 'farmacia'       && <PageFarmacia {...pageProps} />}
+            {page === 'internacao'     && <PageInternacao {...pageProps} />}
+            {page === 'cirurgia'       && <PageCirurgia {...pageProps} />}
+            {page === 'laboratorio'    && <PageLaboratorio {...pageProps} />}
+            {page === 'nfse'           && <PageNFSe {...pageProps} />}
+            {page === 'nps'            && <PageNPS {...pageProps} />}
+            {page === 'faturamento'    && <PageFaturamento {...pageProps} />}
+            {page === 'plano_tratamento' && <PagePlanoTratamento {...pageProps} />}
+            {page === 'protocolos'     && <PageProtocolos {...pageProps} />}
+            {page === 'rh'             && <PageRH {...pageProps} />}
+            {page === 'salas'          && <PageSalas {...pageProps} />}
           </div>
         </main>
       </div>
