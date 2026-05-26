@@ -32,6 +32,23 @@ import PagePlanoTratamento from '../pages/PagePlanoTratamento.jsx'
 import PageProtocolos from '../pages/PageProtocolos.jsx'
 import PageRH from '../pages/PageRH.jsx'
 import PageSalas from '../pages/PageSalas.jsx'
+import PageTelemedicina from '../pages/PageTelemedicina.jsx'
+import PagePrescricaoDigital from '../pages/PagePrescricaoDigital.jsx'
+import PageImagens from '../pages/PageImagens.jsx'
+import PageAutorizacoes from '../pages/PageAutorizacoes.jsx'
+import PageVacinas from '../pages/PageVacinas.jsx'
+import PageOdontograma from '../pages/PageOdontograma.jsx'
+import PageFisioterapia from '../pages/PageFisioterapia.jsx'
+import PageNutricao from '../pages/PageNutricao.jsx'
+import PagePsicologia from '../pages/PagePsicologia.jsx'
+import PageCentroCustos from '../pages/PageCentroCustos.jsx'
+import PageLGPD from '../pages/PageLGPD.jsx'
+import PageAssinatura from '../pages/PageAssinatura.jsx'
+import PagePainelTV from '../pages/PagePainelTV.jsx'
+import PagePortalPaciente from '../pages/PagePortalPaciente.jsx'
+import PageTISS from '../pages/PageTISS.jsx'
+import PageSPED from '../pages/PageSPED.jsx'
+import PageIntegracoes from '../pages/PageIntegracoes.jsx'
 
 function NotificacoesBanner({ clinicaId, darkMode }) {
   const [alertas, setAlertas] = useState([])
@@ -473,8 +490,25 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'faturamento'    && <PageFaturamento {...pageProps} />}
             {page === 'plano_tratamento' && <PagePlanoTratamento {...pageProps} />}
             {page === 'protocolos'     && <PageProtocolos {...pageProps} />}
-            {page === 'rh'             && <PageRH {...pageProps} />}
-            {page === 'salas'          && <PageSalas {...pageProps} />}
+            {page === 'rh'                 && <PageRH {...pageProps} />}
+            {page === 'salas'              && <PageSalas {...pageProps} />}
+            {page === 'telemedicina'       && <PageTelemedicina {...pageProps} />}
+            {page === 'prescricao_digital' && <PagePrescricaoDigital {...pageProps} />}
+            {page === 'imagens'            && <PageImagens {...pageProps} />}
+            {page === 'autorizacoes'       && <PageAutorizacoes {...pageProps} />}
+            {page === 'vacinas'            && <PageVacinas {...pageProps} />}
+            {page === 'odontograma'        && <PageOdontograma {...pageProps} />}
+            {page === 'fisioterapia'       && <PageFisioterapia {...pageProps} />}
+            {page === 'nutricao'           && <PageNutricao {...pageProps} />}
+            {page === 'psicologia'         && <PagePsicologia {...pageProps} />}
+            {page === 'centro_custos'      && <PageCentroCustos {...pageProps} />}
+            {page === 'lgpd'               && <PageLGPD {...pageProps} />}
+            {page === 'assinatura'         && <PageAssinatura {...pageProps} />}
+            {page === 'painel_tv'          && <PagePainelTV {...pageProps} />}
+            {page === 'portal_paciente'    && <PagePortalPaciente {...pageProps} />}
+            {page === 'tiss'               && <PageTISS {...pageProps} />}
+            {page === 'sped'               && <PageSPED {...pageProps} />}
+            {page === 'integracoes'        && <PageIntegracoes {...pageProps} />}
           </div>
         </main>
       </div>
