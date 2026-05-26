@@ -49,6 +49,20 @@ import PagePortalPaciente from '../pages/PagePortalPaciente.jsx'
 import PageTISS from '../pages/PageTISS.jsx'
 import PageSPED from '../pages/PageSPED.jsx'
 import PageIntegracoes from '../pages/PageIntegracoes.jsx'
+import PageComissoes from '../pages/PageComissoes.jsx'
+import PagePlantoes from '../pages/PagePlantoes.jsx'
+import PageManutencao from '../pages/PageManutencao.jsx'
+import PageCompras from '../pages/PageCompras.jsx'
+import PageEsterilizacao from '../pages/PageEsterilizacao.jsx'
+import PageBancoSangue from '../pages/PageBancoSangue.jsx'
+import PageKPIs from '../pages/PageKPIs.jsx'
+import PageOuvidoria from '../pages/PageOuvidoria.jsx'
+import PageAcreditacao from '../pages/PageAcreditacao.jsx'
+import PageCampanhas from '../pages/PageCampanhas.jsx'
+import PageBI from '../pages/PageBI.jsx'
+import PageImportacao from '../pages/PageImportacao.jsx'
+import PageAgendamentoPublico from '../pages/PageAgendamentoPublico.jsx'
+import PageAPI from '../pages/PageAPI.jsx'
 
 function NotificacoesBanner({ clinicaId, darkMode }) {
   const [alertas, setAlertas] = useState([])
@@ -509,6 +523,20 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'tiss'               && <PageTISS {...pageProps} />}
             {page === 'sped'               && <PageSPED {...pageProps} />}
             {page === 'integracoes'        && <PageIntegracoes {...pageProps} />}
+            {page === 'comissoes'          && <PageComissoes {...pageProps} />}
+            {page === 'plantoes'           && <PagePlantoes {...pageProps} />}
+            {page === 'manutencao'         && <PageManutencao {...pageProps} />}
+            {page === 'compras'            && <PageCompras {...pageProps} />}
+            {page === 'esterilizacao'      && <PageEsterilizacao {...pageProps} />}
+            {page === 'banco_sangue'       && <PageBancoSangue {...pageProps} />}
+            {page === 'kpis'               && <PageKPIs {...pageProps} />}
+            {page === 'ouvidoria'          && <PageOuvidoria {...pageProps} />}
+            {page === 'acreditacao'        && <PageAcreditacao {...pageProps} />}
+            {page === 'campanhas'          && <PageCampanhas {...pageProps} />}
+            {page === 'bi'                 && <PageBI {...pageProps} />}
+            {page === 'importacao'         && <PageImportacao {...pageProps} />}
+            {page === 'agendamento_online' && <PageAgendamentoPublico {...pageProps} />}
+            {page === 'api'                && <PageAPI {...pageProps} />}
           </div>
         </main>
       </div>
