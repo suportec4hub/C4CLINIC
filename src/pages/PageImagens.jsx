@@ -547,7 +547,7 @@ function TabVisualizador({ exames, pacientes }) {
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                   {/* Contrast */}
                   <div style={{ flex: 1, minWidth: 150 }}>
-                    <label style={{ fontSize: 11, color: L.t4, fontFamily: "'JetBrains Mono', monospace", display: 'block', marginBottom: 4' }}>
+                    <label style={{ fontSize: 11, color: L.t4, fontFamily: "'JetBrains Mono', monospace", display: 'block', marginBottom: 4 }}>
                       Contraste: {contrast}%
                     </label>
                     <input type="range" min={0} max={300} value={contrast}
