@@ -1368,7 +1368,7 @@ export default function PageAssinatura({ profile }) {
               key={t}
               onClick={() => setTab(i)}
               style={{
-                padding: '7px 18px', borderRadius: 7, fontSize: 13, fontWeight: 500,
+                padding: '7px 18px', borderRadius: 7, fontSize: 13,
                 border: 'none', cursor: 'pointer', transition: 'all 0.15s',
                 background: tab === i ? L.bg : 'transparent',
                 color: tab === i ? L.teal : L.t3,

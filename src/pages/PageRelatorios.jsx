@@ -1152,7 +1152,7 @@ function TabPacientes({ clinicaId }) {
     setLoading(false)
   }
 
-  const PIE_COLORS = [L.teal, L.pink || L.purple, L.blue, L.yellow, L.orange]
+  const PIE_COLORS = [L.teal, L.purple, L.blue, L.yellow, L.orange]
 
   return (
     <>

@@ -303,7 +303,6 @@ export default function PageSalas({ profile }) {
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '10px 18px', fontSize: 13, fontWeight: tab === t.key ? 600 : 500,
             color: tab === t.key ? L.teal : L.t3,
-            borderBottom: tab === t.key ? `2px solid ${L.teal}` : '2px solid transparent',
             background: 'none', border: 'none', borderBottom: tab === t.key ? `2px solid ${L.teal}` : '2px solid transparent',
             cursor: 'pointer', transition: 'color 0.15s',
           }}>{t.label}</button>
