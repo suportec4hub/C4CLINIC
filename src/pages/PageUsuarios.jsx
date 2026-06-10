@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
 import { ROLE_LABELS } from '../constants/nav.js'
 
+const C4HUB_CLINICA_ID = 'c4000000-0000-0000-0000-000000000000'
+
 const CLINICA_ROLES = [
   ['admin_clinica', 'Admin Clínica'],
   ['medico',        'Médico'],
@@ -11,13 +13,21 @@ const CLINICA_ROLES = [
   ['financeiro',    'Financeiro'],
 ]
 
+const C4HUB_ROLES = [
+  ['c4hub_admin', 'Admin C4HUB'],
+  ['c4hub',       'C4HUB'],
+  ...CLINICA_ROLES,
+]
+
 function CargoBadge({ cargo }) {
   const map = {
-    admin_clinica: { bg: L.blueBg,   color: L.blue,   label: 'Admin Clínica' },
-    medico:        { bg: L.greenBg,  color: L.green,  label: 'Médico' },
-    recepcionista: { bg: L.yellowBg, color: L.yellow, label: 'Recepcionista' },
-    atendente:     { bg: L.orangeBg, color: L.orange, label: 'Atendente' },
-    financeiro:    { bg: L.purpleBg, color: L.purple, label: 'Financeiro' },
+    c4hub_admin:   { bg: L.tealBg,    color: L.teal,   label: 'Admin C4HUB' },
+    c4hub:         { bg: L.tealBg,    color: L.teal,   label: 'C4HUB' },
+    admin_clinica: { bg: L.blueBg,    color: L.blue,   label: 'Admin Clínica' },
+    medico:        { bg: L.greenBg,   color: L.green,  label: 'Médico' },
+    recepcionista: { bg: L.yellowBg,  color: L.yellow, label: 'Recepcionista' },
+    atendente:     { bg: L.orangeBg,  color: L.orange, label: 'Atendente' },
+    financeiro:    { bg: L.purpleBg,  color: L.purple, label: 'Financeiro' },
   }
   const s = map[cargo] || { bg: L.hover, color: L.t3, label: ROLE_LABELS[cargo] || cargo }
   return (
@@ -28,37 +38,45 @@ function CargoBadge({ cargo }) {
   )
 }
 
-const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '' }
+const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '' }
 
-export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
-  const [usuarios, setUsuarios] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [search, setSearch]     = useState('')
+export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }) {
+  const [usuarios, setUsuarios]   = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
   const [filterCargo, setFilterCargo] = useState('todos')
-  const [modal, setModal]       = useState(null)
-  const [form, setForm]         = useState(EMPTY_FORM)
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState('')
+  const [modal, setModal]         = useState(null)
+  const [form, setForm]           = useState(EMPTY_FORM)
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
+  const [showPass, setShowPass]   = useState(false)
 
   const clinicaId = profile?.clinica_id
+  const roles = isMaster ? C4HUB_ROLES : CLINICA_ROLES
 
   const load = useCallback(async () => {
     if (!clinicaId) { setLoading(false); return }
     setLoading(true)
-    const { data } = await supabase
+    let q = supabase
       .from('usuarios')
-      .select('id, nome, cargo, created_at')
-      .eq('clinica_id', clinicaId)
+      .select('id, nome, email, cargo, clinica_id, criado_em, ativo')
       .order('nome')
+
+    if (!isMaster) q = q.eq('clinica_id', clinicaId)
+
+    const { data } = await q
     setUsuarios(data || [])
     setLoading(false)
-  }, [clinicaId])
+  }, [clinicaId, isMaster])
 
   useEffect(() => { load() }, [load])
 
-  function openNew() { setForm(EMPTY_FORM); setError(''); setModal('new') }
+  function openNew() {
+    setForm({ ...EMPTY_FORM, cargo: isMaster ? 'admin_clinica' : 'recepcionista' })
+    setError(''); setShowPass(false); setModal('new')
+  }
   function openEdit(u) {
-    setForm({ nome: u.nome, email: '', cargo: u.cargo, senha: '' })
+    setForm({ nome: u.nome, email: u.email || '', cargo: u.cargo, senha: '', confirmarSenha: '' })
     setError(''); setModal(u)
   }
   function closeModal() { setModal(null); setError('') }
@@ -66,30 +84,31 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
 
   async function save() {
     if (!form.nome.trim()) { setError('Nome é obrigatório.'); return }
-    if (modal === 'new' && !form.email.trim()) { setError('E-mail é obrigatório.'); return }
-    if (modal === 'new' && !form.senha)        { setError('Senha é obrigatória.'); return }
+    if (modal === 'new') {
+      if (!form.email.trim())  { setError('E-mail é obrigatório.'); return }
+      if (!form.senha)         { setError('Senha é obrigatória.'); return }
+      if (form.senha.length < 6) { setError('Senha deve ter ao menos 6 caracteres.'); return }
+      if (form.senha !== form.confirmarSenha) { setError('Senhas não conferem.'); return }
+    }
 
     setSaving(true); setError('')
     try {
       if (modal === 'new') {
-        const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
-          email: form.email.trim(),
-          password: form.senha,
-          email_confirm: true,
+        const targetClinicaId = ['c4hub_admin','c4hub'].includes(form.cargo)
+          ? C4HUB_CLINICA_ID
+          : clinicaId
+
+        const { error: rpcErr } = await supabase.rpc('admin_create_user', {
+          p_email:      form.email.trim().toLowerCase(),
+          p_password:   form.senha,
+          p_nome:       form.nome.trim(),
+          p_cargo:      form.cargo,
+          p_clinica_id: targetClinicaId,
         })
-        if (authErr) throw authErr
-        const { error: profErr } = await supabase.from('usuarios').insert({
-          id: authData.user.id,
-          nome: form.nome.trim(),
-          cargo: form.cargo,
-          clinica_id: clinicaId,
-        })
-        if (profErr) throw profErr
+        if (rpcErr) throw rpcErr
       } else {
-        const { error: e } = await supabase.from('usuarios').update({
-          nome: form.nome.trim(),
-          cargo: form.cargo,
-        }).eq('id', modal.id)
+        const updates = { nome: form.nome.trim(), cargo: form.cargo }
+        const { error: e } = await supabase.from('usuarios').update(updates).eq('id', modal.id)
         if (e) throw e
       }
       await load(); closeModal()
@@ -98,31 +117,39 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
     } finally { setSaving(false) }
   }
 
+  async function toggleAtivo(u) {
+    if (u.id === user.id) { alert('Não é possível desativar seu próprio usuário.'); return }
+    const { error: e } = await supabase.from('usuarios').update({ ativo: !u.ativo }).eq('id', u.id)
+    if (!e) setUsuarios(prev => prev.map(x => x.id === u.id ? { ...x, ativo: !x.ativo } : x))
+  }
+
   async function del(u) {
     if (u.id === user.id) { alert('Você não pode excluir seu próprio usuário.'); return }
-    if (!window.confirm(`Excluir "${u.nome}"?`)) return
+    if (!window.confirm(`Excluir "${u.nome}"? Esta ação não pode ser desfeita.`)) return
     await supabase.from('usuarios').delete().eq('id', u.id)
     setUsuarios(prev => prev.filter(x => x.id !== u.id))
   }
 
+  const filterRoles = isMaster ? C4HUB_ROLES : CLINICA_ROLES
+
   const filtered = usuarios.filter(u => {
     const q = search.toLowerCase()
-    const matchQ = !q || u.nome?.toLowerCase().includes(q)
+    const matchQ = !q || u.nome?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
     const matchC = filterCargo === 'todos' || u.cargo === filterCargo
     return matchQ && matchC
   })
 
   const stats = {
-    total:      usuarios.length,
-    medicos:    usuarios.filter(u => u.cargo === 'medico').length,
-    receps:     usuarios.filter(u => u.cargo === 'recepcionista').length,
-    outros:     usuarios.filter(u => !['medico', 'recepcionista'].includes(u.cargo)).length,
+    total:    usuarios.length,
+    admins:   usuarios.filter(u => ['c4hub_admin','c4hub','admin_clinica'].includes(u.cargo)).length,
+    medicos:  usuarios.filter(u => u.cargo === 'medico').length,
+    ativos:   usuarios.filter(u => u.ativo !== false).length,
   }
 
   if (!isAdmin) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: L.t4 }}>
-        Acesso restrito a administradores da clínica.
+        Acesso restrito a administradores.
       </div>
     )
   }
@@ -132,10 +159,10 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { label: 'Total',          value: stats.total,   color: L.teal },
-          { label: 'Médicos',        value: stats.medicos,  color: L.green },
-          { label: 'Recepcionistas', value: stats.receps,   color: L.yellow },
-          { label: 'Outros',         value: stats.outros,   color: L.t3 },
+          { label: 'Total Usuários', value: stats.total,   color: L.teal },
+          { label: 'Admins',         value: stats.admins,  color: L.blue },
+          { label: 'Médicos',        value: stats.medicos, color: L.green },
+          { label: 'Ativos',         value: stats.ativos,  color: L.t2 },
         ].map(k => (
           <div key={k.label} style={{
             background: L.bg, border: `1px solid ${L.line}`, borderRadius: 12, padding: '16px 20px'
@@ -154,7 +181,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
       }}>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nome..."
+          placeholder="Buscar por nome ou e-mail..."
           style={{
             flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8,
             border: `1px solid ${L.line}`, fontSize: 13, color: L.t1, background: L.surface
@@ -164,12 +191,12 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
           padding: '8px 12px', borderRadius: 8, border: `1px solid ${L.line}`,
           fontSize: 13, color: L.t2, background: L.surface
         }}>
-          <option value="todos">Todos os cargos</option>
-          {CLINICA_ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <option value="todos">Todos os perfis</option>
+          {filterRoles.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <button onClick={openNew} style={{
           padding: '8px 18px', borderRadius: 8, background: L.teal,
-          color: L.white, fontWeight: 600, fontSize: 13
+          color: L.white, fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer'
         }}>+ Novo Usuário</button>
       </div>
 
@@ -179,13 +206,13 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
           <div style={{ padding: 40, textAlign: 'center', color: L.t4 }}>Carregando...</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: L.t4 }}>
-            {usuarios.length === 0 ? 'Nenhum usuário cadastrado nesta clínica.' : 'Nenhum resultado encontrado.'}
+            {usuarios.length === 0 ? 'Nenhum usuário cadastrado.' : 'Nenhum resultado encontrado.'}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${L.line}`, background: L.surface }}>
-                {['Usuário', 'Cargo', 'Membro desde', 'Ações'].map(h => (
+                {['Usuário', 'Perfil', 'E-mail', 'Status', 'Membro desde', 'Ações'].map(h => (
                   <th key={h} style={{
                     padding: '10px 16px', textAlign: 'left',
                     fontSize: 11, color: L.t4, fontWeight: 600,
@@ -205,28 +232,46 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{
-                        width: 32, height: 32, borderRadius: '50%', background: L.tealBg,
-                        border: `1.5px solid ${L.teal}30`, display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
-                        fontSize: 13, fontWeight: 700, color: L.teal, flexShrink: 0
+                        width: 34, height: 34, borderRadius: '50%',
+                        background: ['c4hub_admin','c4hub'].includes(u.cargo) ? L.tealBg : L.hover,
+                        border: `1.5px solid ${['c4hub_admin','c4hub'].includes(u.cargo) ? L.teal + '40' : L.line}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 13, fontWeight: 700,
+                        color: ['c4hub_admin','c4hub'].includes(u.cargo) ? L.teal : L.t3,
+                        flexShrink: 0
                       }}>{u.nome?.[0]?.toUpperCase() || '?'}</div>
-                      <div style={{ fontWeight: 600, color: L.t1, fontSize: 13 }}>{u.nome}</div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: L.t1, fontSize: 13 }}>{u.nome}</div>
+                        {u.id === user.id && (
+                          <div style={{ fontSize: 10, color: L.teal, fontWeight: 600 }}>Você</div>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td style={{ padding: '12px 16px' }}><CargoBadge cargo={u.cargo} /></td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: L.t3 }}>
+                  <td style={{ padding: '12px 16px', fontSize: 12, color: L.t3 }}>{u.email || '—'}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <button onClick={() => toggleAtivo(u)} style={{
+                      padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                      background: u.ativo !== false ? L.greenBg : L.redBg,
+                      color: u.ativo !== false ? L.green : L.red,
+                      border: `1px solid ${u.ativo !== false ? L.greenBd : L.redBd}`,
+                      cursor: 'pointer'
+                    }}>{u.ativo !== false ? 'Ativo' : 'Inativo'}</button>
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 12, color: L.t3 }}>
                     {u.criado_em ? new Date(u.criado_em).toLocaleDateString('pt-BR') : '—'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => openEdit(u)} style={{
                         padding: '5px 12px', borderRadius: 7, fontSize: 12,
-                        background: L.hover, color: L.t2, fontWeight: 500
+                        background: L.hover, color: L.t2, fontWeight: 500, cursor: 'pointer'
                       }}>Editar</button>
                       {u.id !== user.id && (
                         <button onClick={() => del(u)} style={{
                           padding: '5px 12px', borderRadius: 7, fontSize: 12,
-                          background: L.redBg, color: L.red, fontWeight: 500
+                          background: L.redBg, color: L.red, fontWeight: 500, cursor: 'pointer'
                         }}>Excluir</button>
                       )}
                     </div>
@@ -241,45 +286,77 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
       {/* Modal */}
       {modal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
           zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
         }} onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal-wrap anim-up" style={{
-            background: L.bg, borderRadius: 16, width: '100%', maxWidth: 460,
+          <div style={{
+            background: L.bg, borderRadius: 16, width: '100%', maxWidth: 480,
             maxHeight: '90vh', overflowY: 'auto',
-            border: `1px solid ${L.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.15)'
+            border: `1px solid ${L.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.18)'
           }}>
+            {/* Header */}
             <div style={{
               padding: '20px 24px', borderBottom: `1px solid ${L.line}`,
               display: 'flex', alignItems: 'center', justifyContent: 'space-between'
             }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: L.t1 }}>
-                {modal === 'new' ? 'Novo Usuário' : 'Editar Usuário'}
+                {modal === 'new' ? '+ Novo Usuário' : 'Editar Usuário'}
               </div>
-              <button onClick={closeModal} style={{ fontSize: 20, color: L.t3 }}>×</button>
+              <button onClick={closeModal} style={{
+                fontSize: 20, color: L.t3, background: 'none', border: 'none', cursor: 'pointer'
+              }}>×</button>
             </div>
 
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <FRow label="Nome *">
-                <input value={form.nome} onChange={field('nome')} placeholder="Nome completo" style={inp} />
+              <FRow label="Nome completo *">
+                <input value={form.nome} onChange={field('nome')} placeholder="Nome do usuário" style={inp} />
               </FRow>
+
+              {/* Perfil selector */}
+              <FRow label="Perfil de acesso">
+                <select value={form.cargo} onChange={field('cargo')} style={inp}>
+                  {roles.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </FRow>
+
+              {/* Alert for c4hub_admin */}
+              {['c4hub_admin','c4hub'].includes(form.cargo) && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8, fontSize: 12,
+                  background: L.tealBg, color: L.tealDark, border: `1px solid ${L.teal}30`
+                }}>
+                  <strong>Atenção:</strong> Este perfil terá acesso total a todas as clínicas e hospitais do sistema.
+                </div>
+              )}
+
               {modal === 'new' && (
                 <>
                   <FRow label="E-mail *">
-                    <input value={form.email} onChange={field('email')} placeholder="email@exemplo.com"
-                      style={inp} type="email" />
+                    <input value={form.email} onChange={field('email')}
+                      placeholder="usuario@exemplo.com" style={inp} type="email" />
                   </FRow>
-                  <FRow label="Senha *">
-                    <input value={form.senha} onChange={field('senha')} placeholder="Senha inicial"
-                      style={inp} type="password" />
+                  <FRow label="Senha inicial *">
+                    <div style={{ position: 'relative' }}>
+                      <input value={form.senha} onChange={field('senha')}
+                        placeholder="Mínimo 6 caracteres" style={{ ...inp, paddingRight: 40 }}
+                        type={showPass ? 'text' : 'password'} />
+                      <button
+                        type="button"
+                        onClick={() => setShowPass(v => !v)}
+                        style={{
+                          position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                          background: 'none', border: 'none', cursor: 'pointer', color: L.t3, fontSize: 14
+                        }}
+                      >{showPass ? '🙈' : '👁'}</button>
+                    </div>
+                  </FRow>
+                  <FRow label="Confirmar senha *">
+                    <input value={form.confirmarSenha} onChange={field('confirmarSenha')}
+                      placeholder="Repita a senha" style={inp}
+                      type={showPass ? 'text' : 'password'} />
                   </FRow>
                 </>
               )}
-              <FRow label="Cargo">
-                <select value={form.cargo} onChange={field('cargo')} style={inp}>
-                  {CLINICA_ROLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </FRow>
 
               {error && (
                 <div style={{
@@ -291,12 +368,13 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin }) {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
                 <button onClick={closeModal} style={{
                   padding: '9px 20px', borderRadius: 8,
-                  background: L.hover, color: L.t2, fontWeight: 500, fontSize: 13
+                  background: L.hover, color: L.t2, fontWeight: 500, fontSize: 13,
+                  border: 'none', cursor: 'pointer'
                 }}>Cancelar</button>
                 <button onClick={save} disabled={saving} style={{
-                  padding: '9px 20px', borderRadius: 8,
+                  padding: '9px 22px', borderRadius: 8,
                   background: L.teal, color: L.white, fontWeight: 600, fontSize: 13,
-                  opacity: saving ? 0.7 : 1
+                  opacity: saving ? 0.7 : 1, border: 'none', cursor: saving ? 'not-allowed' : 'pointer'
                 }}>{saving ? 'Salvando...' : 'Salvar'}</button>
               </div>
             </div>
@@ -319,5 +397,5 @@ function FRow({ label, children }) {
 const inp = {
   width: '100%', padding: '9px 12px', borderRadius: 8,
   border: `1px solid ${L.line}`, fontSize: 13, color: L.t1,
-  background: L.surface, outline: 'none'
+  background: L.surface, outline: 'none', boxSizing: 'border-box'
 }

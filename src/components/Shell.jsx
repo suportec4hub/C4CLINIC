@@ -21,6 +21,48 @@ import PageFluxo from '../pages/PageFluxo.jsx'
 import PageAtividades from '../pages/PageAtividades.jsx'
 import PageProntuario from '../pages/PageProntuario.jsx'
 import PageComunicacao from '../pages/PageComunicacao.jsx'
+import PageFarmacia from '../pages/PageFarmacia.jsx'
+import PageInternacao from '../pages/PageInternacao.jsx'
+import PageCirurgia from '../pages/PageCirurgia.jsx'
+import PageLaboratorio from '../pages/PageLaboratorio.jsx'
+import PageNFSe from '../pages/PageNFSe.jsx'
+import PageNPS from '../pages/PageNPS.jsx'
+import PageFaturamento from '../pages/PageFaturamento.jsx'
+import PagePlanoTratamento from '../pages/PagePlanoTratamento.jsx'
+import PageProtocolos from '../pages/PageProtocolos.jsx'
+import PageRH from '../pages/PageRH.jsx'
+import PageSalas from '../pages/PageSalas.jsx'
+import PageTelemedicina from '../pages/PageTelemedicina.jsx'
+import PagePrescricaoDigital from '../pages/PagePrescricaoDigital.jsx'
+import PageImagens from '../pages/PageImagens.jsx'
+import PageAutorizacoes from '../pages/PageAutorizacoes.jsx'
+import PageVacinas from '../pages/PageVacinas.jsx'
+import PageOdontograma from '../pages/PageOdontograma.jsx'
+import PageFisioterapia from '../pages/PageFisioterapia.jsx'
+import PageNutricao from '../pages/PageNutricao.jsx'
+import PagePsicologia from '../pages/PagePsicologia.jsx'
+import PageCentroCustos from '../pages/PageCentroCustos.jsx'
+import PageLGPD from '../pages/PageLGPD.jsx'
+import PageAssinatura from '../pages/PageAssinatura.jsx'
+import PagePainelTV from '../pages/PagePainelTV.jsx'
+import PagePortalPaciente from '../pages/PagePortalPaciente.jsx'
+import PageTISS from '../pages/PageTISS.jsx'
+import PageSPED from '../pages/PageSPED.jsx'
+import PageIntegracoes from '../pages/PageIntegracoes.jsx'
+import PageComissoes from '../pages/PageComissoes.jsx'
+import PagePlantoes from '../pages/PagePlantoes.jsx'
+import PageManutencao from '../pages/PageManutencao.jsx'
+import PageCompras from '../pages/PageCompras.jsx'
+import PageEsterilizacao from '../pages/PageEsterilizacao.jsx'
+import PageBancoSangue from '../pages/PageBancoSangue.jsx'
+import PageKPIs from '../pages/PageKPIs.jsx'
+import PageOuvidoria from '../pages/PageOuvidoria.jsx'
+import PageAcreditacao from '../pages/PageAcreditacao.jsx'
+import PageCampanhas from '../pages/PageCampanhas.jsx'
+import PageBI from '../pages/PageBI.jsx'
+import PageImportacao from '../pages/PageImportacao.jsx'
+import PageAgendamentoPublico from '../pages/PageAgendamentoPublico.jsx'
+import PageAPI from '../pages/PageAPI.jsx'
 
 function NotificacoesBanner({ clinicaId, darkMode }) {
   const [alertas, setAlertas] = useState([])
@@ -453,6 +495,48 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
             {page === 'atividades'     && <PageAtividades {...pageProps} />}
             {page === 'prontuario'     && <PageProntuario {...pageProps} />}
             {page === 'comunicacao'    && <PageComunicacao {...pageProps} />}
+            {page === 'farmacia'       && <PageFarmacia {...pageProps} />}
+            {page === 'internacao'     && <PageInternacao {...pageProps} />}
+            {page === 'cirurgia'       && <PageCirurgia {...pageProps} />}
+            {page === 'laboratorio'    && <PageLaboratorio {...pageProps} />}
+            {page === 'nfse'           && <PageNFSe {...pageProps} />}
+            {page === 'nps'            && <PageNPS {...pageProps} />}
+            {page === 'faturamento'    && <PageFaturamento {...pageProps} />}
+            {page === 'plano_tratamento' && <PagePlanoTratamento {...pageProps} />}
+            {page === 'protocolos'     && <PageProtocolos {...pageProps} />}
+            {page === 'rh'                 && <PageRH {...pageProps} />}
+            {page === 'salas'              && <PageSalas {...pageProps} />}
+            {page === 'telemedicina'       && <PageTelemedicina {...pageProps} />}
+            {page === 'prescricao_digital' && <PagePrescricaoDigital {...pageProps} />}
+            {page === 'imagens'            && <PageImagens {...pageProps} />}
+            {page === 'autorizacoes'       && <PageAutorizacoes {...pageProps} />}
+            {page === 'vacinas'            && <PageVacinas {...pageProps} />}
+            {page === 'odontograma'        && <PageOdontograma {...pageProps} />}
+            {page === 'fisioterapia'       && <PageFisioterapia {...pageProps} />}
+            {page === 'nutricao'           && <PageNutricao {...pageProps} />}
+            {page === 'psicologia'         && <PagePsicologia {...pageProps} />}
+            {page === 'centro_custos'      && <PageCentroCustos {...pageProps} />}
+            {page === 'lgpd'               && <PageLGPD {...pageProps} />}
+            {page === 'assinatura'         && <PageAssinatura {...pageProps} />}
+            {page === 'painel_tv'          && <PagePainelTV {...pageProps} />}
+            {page === 'portal_paciente'    && <PagePortalPaciente {...pageProps} />}
+            {page === 'tiss'               && <PageTISS {...pageProps} />}
+            {page === 'sped'               && <PageSPED {...pageProps} />}
+            {page === 'integracoes'        && <PageIntegracoes {...pageProps} />}
+            {page === 'comissoes'          && <PageComissoes {...pageProps} />}
+            {page === 'plantoes'           && <PagePlantoes {...pageProps} />}
+            {page === 'manutencao'         && <PageManutencao {...pageProps} />}
+            {page === 'compras'            && <PageCompras {...pageProps} />}
+            {page === 'esterilizacao'      && <PageEsterilizacao {...pageProps} />}
+            {page === 'banco_sangue'       && <PageBancoSangue {...pageProps} />}
+            {page === 'kpis'               && <PageKPIs {...pageProps} />}
+            {page === 'ouvidoria'          && <PageOuvidoria {...pageProps} />}
+            {page === 'acreditacao'        && <PageAcreditacao {...pageProps} />}
+            {page === 'campanhas'          && <PageCampanhas {...pageProps} />}
+            {page === 'bi'                 && <PageBI {...pageProps} />}
+            {page === 'importacao'         && <PageImportacao {...pageProps} />}
+            {page === 'agendamento_online' && <PageAgendamentoPublico {...pageProps} />}
+            {page === 'api'                && <PageAPI {...pageProps} />}
           </div>
         </main>
       </div>

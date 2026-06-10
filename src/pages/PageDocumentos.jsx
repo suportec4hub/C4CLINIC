@@ -257,13 +257,27 @@ function PrintView({ doc, clinica, onClose }) {
               {doc.conteudo || ''}
             </div>
 
-            <div style={{ marginTop: 60, textAlign: 'right' }}>
-              <div style={{ marginBottom: 8, fontSize: 13 }}>
-                {doc.data_documento ? fmtData(doc.data_documento) : ''}
-              </div>
-              <div style={{ borderTop: '1px solid #111', display: 'inline-block', minWidth: 260, textAlign: 'center', paddingTop: 8 }}>
-                <div style={{ fontWeight: 600 }}>{doc.medicos?.nome || 'Médico responsável'}</div>
-                {doc.medicos?.crm && <div style={{ fontSize: 12, color: '#555' }}>CRM {doc.medicos.crm}</div>}
+            <div style={{ marginTop: 60, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+              {doc.codigo_verificacao && (
+                <div style={{ textAlign: 'center' }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`Cód. autenticação: ${doc.codigo_verificacao}`)}`}
+                    alt="QR Code"
+                    style={{ width: 80, height: 80, display: 'block', marginBottom: 4 }}
+                  />
+                  <div style={{ fontSize: 9, color: '#888', fontFamily: 'monospace', letterSpacing: '0.5px' }}>
+                    Auth: {doc.codigo_verificacao}
+                  </div>
+                </div>
+              )}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ marginBottom: 8, fontSize: 13 }}>
+                  {doc.data_documento ? fmtData(doc.data_documento) : ''}
+                </div>
+                <div style={{ borderTop: '1px solid #111', display: 'inline-block', minWidth: 260, textAlign: 'center', paddingTop: 8 }}>
+                  <div style={{ fontWeight: 600 }}>{doc.medicos?.nome || 'Médico responsável'}</div>
+                  {doc.medicos?.crm && <div style={{ fontSize: 12, color: '#555' }}>CRM {doc.medicos.crm}</div>}
+                </div>
               </div>
             </div>
           </div>
