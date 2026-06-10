@@ -146,6 +146,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const cargo = profile?.cargo || ''
   const isMaster = isC4HubAdmin(cargo)
   const isAdmin  = isClinicaAdmin(cargo)
+  const isPdvTV  = cargo === 'pdv_tv'
   const clinicaNome = profile?.clinicas?.nome || 'C4CLINIC'
   const isClinical = !['c4hub_admin','c4hub'].includes(cargo) || profile?.clinica_id
 
@@ -390,6 +391,27 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   )
 
   const pageProps = { user, profile, cargo, isMaster, isAdmin, nav }
+
+  if (isPdvTV) {
+    return (
+      <div style={{ height: '100dvh', overflow: 'hidden', background: '#000', position: 'relative' }}>
+        <PagePainelTV {...pageProps} />
+        <button
+          onClick={onLogout}
+          title="Sair do quiosque"
+          style={{
+            position: 'fixed', bottom: 12, right: 12, zIndex: 999,
+            width: 36, height: 36, borderRadius: 8, opacity: 0.35,
+            background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)',
+            color: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.2s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '0.35'}
+        >⇥</button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>

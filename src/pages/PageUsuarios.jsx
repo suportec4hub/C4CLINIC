@@ -6,11 +6,21 @@ import { ROLE_LABELS } from '../constants/nav.js'
 const C4HUB_CLINICA_ID = 'c4000000-0000-0000-0000-000000000000'
 
 const CLINICA_ROLES = [
-  ['admin_clinica', 'Admin Clínica'],
-  ['medico',        'Médico'],
-  ['recepcionista', 'Recepcionista'],
-  ['atendente',     'Atendente'],
-  ['financeiro',    'Financeiro'],
+  ['admin_clinica',      'Admin Clínica'],
+  ['medico',             'Médico'],
+  ['enfermeiro',         'Enfermeiro(a)'],
+  ['tecnico_enfermagem', 'Técnico de Enfermagem'],
+  ['recepcionista',      'Recepcionista'],
+  ['atendente',          'Atendente'],
+  ['financeiro',         'Financeiro'],
+  ['faturamento',        'Faturamento'],
+  ['farmaceutico',       'Farmacêutico(a)'],
+  ['fisioterapeuta',     'Fisioterapeuta'],
+  ['nutricionista',      'Nutricionista'],
+  ['psicologo',          'Psicólogo(a)'],
+  ['estoque',            'Estoque'],
+  ['ti',                 'TI / Tecnologia'],
+  ['pdv_tv',             'Painel TV (Quiosque)'],
 ]
 
 const C4HUB_ROLES = [
@@ -21,13 +31,23 @@ const C4HUB_ROLES = [
 
 function CargoBadge({ cargo }) {
   const map = {
-    c4hub_admin:   { bg: L.tealBg,    color: L.teal,   label: 'Admin C4HUB' },
-    c4hub:         { bg: L.tealBg,    color: L.teal,   label: 'C4HUB' },
-    admin_clinica: { bg: L.blueBg,    color: L.blue,   label: 'Admin Clínica' },
-    medico:        { bg: L.greenBg,   color: L.green,  label: 'Médico' },
-    recepcionista: { bg: L.yellowBg,  color: L.yellow, label: 'Recepcionista' },
-    atendente:     { bg: L.orangeBg,  color: L.orange, label: 'Atendente' },
-    financeiro:    { bg: L.purpleBg,  color: L.purple, label: 'Financeiro' },
+    c4hub_admin:        { bg: L.tealBg,    color: L.teal,   label: 'Admin C4HUB' },
+    c4hub:              { bg: L.tealBg,    color: L.teal,   label: 'C4HUB' },
+    admin_clinica:      { bg: L.blueBg,    color: L.blue,   label: 'Admin Clínica' },
+    medico:             { bg: L.greenBg,   color: L.green,  label: 'Médico' },
+    enfermeiro:         { bg: L.greenBg,   color: L.green,  label: 'Enfermeiro(a)' },
+    tecnico_enfermagem: { bg: L.greenBg,   color: L.green,  label: 'Téc. Enfermagem' },
+    recepcionista:      { bg: L.yellowBg,  color: L.yellow, label: 'Recepcionista' },
+    atendente:          { bg: L.orangeBg,  color: L.orange, label: 'Atendente' },
+    financeiro:         { bg: L.purpleBg,  color: L.purple, label: 'Financeiro' },
+    faturamento:        { bg: L.purpleBg,  color: L.purple, label: 'Faturamento' },
+    farmaceutico:       { bg: L.blueBg,    color: L.blue,   label: 'Farmacêutico(a)' },
+    fisioterapeuta:     { bg: L.orangeBg,  color: L.orange, label: 'Fisioterapeuta' },
+    nutricionista:      { bg: L.greenBg,   color: L.green,  label: 'Nutricionista' },
+    psicologo:          { bg: L.tealBg,    color: L.teal,   label: 'Psicólogo(a)' },
+    estoque:            { bg: L.yellowBg,  color: L.yellow, label: 'Estoque' },
+    ti:                 { bg: L.blueBg,    color: L.blue,   label: 'TI / Tecnologia' },
+    pdv_tv:             { bg: L.hover,     color: L.t3,     label: 'Painel TV' },
   }
   const s = map[cargo] || { bg: L.hover, color: L.t3, label: ROLE_LABELS[cargo] || cargo }
   return (
@@ -55,7 +75,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
   const roles = isMaster ? C4HUB_ROLES : CLINICA_ROLES
 
   const load = useCallback(async () => {
-    if (!clinicaId) { setLoading(false); return }
+    if (!clinicaId && !isMaster) { setLoading(false); return }
     setLoading(true)
     let q = supabase
       .from('usuarios')
@@ -64,7 +84,8 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
 
     if (!isMaster) q = q.eq('clinica_id', clinicaId)
 
-    const { data } = await q
+    const { data, error: qErr } = await q
+    if (qErr) setError(qErr.message)
     setUsuarios(data || [])
     setLoading(false)
   }, [clinicaId, isMaster])
