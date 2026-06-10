@@ -11,7 +11,7 @@ const PLANOS = [
 const TIPOS = [
   { value: 'clinica',        label: 'Clínica',        bg: L.blueBg,    color: L.blue },
   { value: 'hospital',       label: 'Hospital',       bg: L.purpleBg,  color: L.purple },
-  { value: 'medico_avulso',  label: 'Médico Avulso',  bg: L.greenBg,   color: L.green },
+  { value: 'medico_avulso',  label: 'Consultório Solo', bg: L.greenBg,   color: L.green },
 ]
 
 function Badge({ tipo }) {
@@ -161,7 +161,7 @@ export default function PageClientes({ isMaster }) {
           { label: 'Total',           value: stats.total,        color: L.teal },
           { label: 'Clínicas',        value: stats.clinicas,     color: L.blue },
           { label: 'Hospitais',       value: stats.hospitais,    color: L.purple },
-          { label: 'Méd. Avulsos',    value: stats.medicos_avul, color: L.green },
+          { label: 'Cons. Solo',       value: stats.medicos_avul, color: L.green },
           { label: 'Ativos',          value: stats.ativos,       color: L.t2 },
         ].map(k => (
           <div key={k.label} style={{
@@ -321,10 +321,10 @@ export default function PageClientes({ isMaster }) {
 
               <Row label={medico ? 'Nome do Médico *' : 'Nome da Clínica / Hospital *'}>
                 <input value={form.nome} onChange={field('nome')}
-                  placeholder={medico ? 'Dr. Nome Completo' : 'Nome da instituição'} style={inp} />
+                  placeholder={medico ? 'Dr. Nome Completo' : 'Nome da clínica ou hospital'} style={inp} />
               </Row>
 
-              {/* Médico Avulso fields */}
+              {/* Consultório Solo fields */}
               {medico ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <Row label="CRM">
