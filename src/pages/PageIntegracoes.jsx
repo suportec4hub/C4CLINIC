@@ -105,17 +105,21 @@ const INTEGRATIONS_META = [
   { tipo: 'google_agenda', nome: 'Google Agenda' },
 ]
 
+const WEBHOOK_URL = 'https://tbfrwnfajrcpimhflmhv.supabase.co/functions/v1/whatsapp-webhook'
+
 // ─── WhatsApp card ────────────────────────────────────────────────────────────
 function CardWhatsApp({ config, onSave, onToast }) {
-  const [expanded, setExpanded] = useState(false)
-  const [ativo, setAtivo]       = useState(config?.ativo ?? false)
-  const [fields, setFields]     = useState({
-    phone_number_id: config?.config?.phone_number_id || '',
-    access_token: config?.config?.access_token || '',
-    webhook_verify_token: config?.config?.webhook_verify_token || '',
+  const [expanded, setExpanded]   = useState(false)
+  const [ativo, setAtivo]         = useState(config?.ativo ?? false)
+  const [fields, setFields]       = useState({
+    phone_number_id:     config?.config?.phone_number_id     || '',
+    access_token:        config?.config?.access_token        || '',
+    webhook_verify_token:config?.config?.webhook_verify_token|| '',
   })
-  const [testing, setTesting]   = useState(false)
-  const [saving, setSaving]     = useState(false)
+  const [showToken, setShowToken] = useState(false)
+  const [testing, setTesting]     = useState(false)
+  const [testResult, setTestResult] = useState(null) // { ok, name, phone, quality } | null
+  const [saving, setSaving]       = useState(false)
 
   const set = (k, v) => setFields(f => ({ ...f, [k]: v }))
 
@@ -126,13 +130,28 @@ function CardWhatsApp({ config, onSave, onToast }) {
   }
 
   async function handleTest() {
+    if (!fields.phone_number_id || !fields.access_token) {
+      onToast('Preencha Phone Number ID e Access Token', 'red')
+      return
+    }
     setTesting(true)
-    await new Promise(r => setTimeout(r, 900))
-    setTesting(false)
-    if (fields.phone_number_id && fields.access_token) {
-      onToast('Conexão estabelecida!', 'green')
-    } else {
-      onToast('Erro na conexão — verifique as credenciais', 'red')
+    setTestResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
+          action: 'test',
+          phone_number_id: fields.phone_number_id,
+          access_token: fields.access_token,
+        },
+      })
+      if (error || data?.error) throw new Error(data?.error || error.message)
+      setTestResult({ ok: true, name: data.verified_name, phone: data.display_phone, quality: data.quality_rating })
+      onToast(`Conectado: ${data.verified_name}`, 'green')
+    } catch (e) {
+      setTestResult({ ok: false, msg: e.message })
+      onToast(`Erro: ${e.message}`, 'red')
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -170,29 +189,93 @@ function CardWhatsApp({ config, onSave, onToast }) {
       {/* body */}
       {expanded && (
         <div style={{ padding: '20px' }}>
+
+          {/* test result banner */}
+          {testResult && (
+            <div style={{
+              marginBottom: 16, padding: '12px 16px', borderRadius: 10, fontSize: 13,
+              background: testResult.ok ? L.greenBg : L.redBg,
+              border: `1px solid ${testResult.ok ? L.greenBd : L.redBd}`,
+              color: testResult.ok ? L.green : L.red,
+            }}>
+              {testResult.ok ? (
+                <>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>✓ Conexão estabelecida</div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                    {testResult.name} · {testResult.phone}
+                    {testResult.quality && <span style={{ marginLeft: 8 }}>Qualidade: {testResult.quality}</span>}
+                  </div>
+                </>
+              ) : (
+                <div><strong>Erro:</strong> {testResult.msg}</div>
+              )}
+            </div>
+          )}
+
           <Field label="Phone Number ID">
             <input style={inp} value={fields.phone_number_id}
               onChange={e => set('phone_number_id', e.target.value)}
               placeholder="123456789012345" />
           </Field>
-          <Field label="Access Token">
-            <input style={inp} type="password" value={fields.access_token}
-              onChange={e => set('access_token', e.target.value)}
-              placeholder="EAAxxxxxxxx..." />
+
+          <Field label="Access Token (System User)">
+            <div style={{ position: 'relative' }}>
+              <input
+                style={{ ...inp, paddingRight: 40 }}
+                type={showToken ? 'text' : 'password'}
+                value={fields.access_token}
+                onChange={e => set('access_token', e.target.value)}
+                placeholder="EAAxxxxxxxx..."
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken(v => !v)}
+                style={{
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer', color: L.t3, fontSize: 14
+                }}
+              >{showToken ? '🙈' : '👁'}</button>
+            </div>
           </Field>
+
           <Field label="Webhook Verify Token">
             <input style={inp} value={fields.webhook_verify_token}
               onChange={e => set('webhook_verify_token', e.target.value)}
-              placeholder="meu_token_secreto" />
+              placeholder="meu_token_secreto_123" />
           </Field>
+
+          {/* webhook URL info */}
+          <div style={{
+            background: L.blueBg, border: `1px solid ${L.blueBd}`, borderRadius: 10,
+            padding: '12px 16px', marginBottom: 16
+          }}>
+            <div style={{ fontSize: 11, color: L.blue, fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
+              URL DO WEBHOOK — configure no Meta Business Manager
+            </div>
+            <div style={{
+              fontSize: 11, color: L.t2, fontFamily: "'JetBrains Mono', monospace",
+              background: L.bg, padding: '7px 10px', borderRadius: 6, wordBreak: 'break-all',
+              border: `1px solid ${L.line}`
+            }}>
+              {WEBHOOK_URL}
+            </div>
+            <div style={{ fontSize: 11, color: L.t3, marginTop: 6 }}>
+              Campos obrigatórios: <strong>messages</strong> · Versão API recomendada: <strong>v21.0</strong>
+            </div>
+          </div>
 
           {/* features */}
           <div style={{
             background: L.surface, border: `1px solid ${L.line}`, borderRadius: 10,
             padding: '14px 16px', marginBottom: 16
           }}>
-            <div style={{ fontSize: 11, color: L.t4, fontFamily: "'JetBrains Mono', monospace", marginBottom: 10 }}>RECURSOS</div>
-            {['Confirmação de consulta', 'Lembrete 24h antes', 'Envio de resultados', 'Mensagens personalizadas'].map(f => (
+            <div style={{ fontSize: 11, color: L.t4, fontFamily: "'JetBrains Mono', monospace", marginBottom: 10 }}>RECURSOS HABILITADOS</div>
+            {[
+              'Envio direto via API (sem abrir WhatsApp Web)',
+              'Rastreamento: enviado → entregue → lido',
+              'Confirmação de consulta e lembretes',
+              'Resultado de exames e mensagens personalizadas',
+            ].map(f => (
               <div key={f} style={{ fontSize: 13, color: L.t2, marginBottom: 6, display: 'flex', gap: 8 }}>
                 <span style={{ color: L.green }}>✓</span> {f}
               </div>
@@ -204,19 +287,21 @@ function CardWhatsApp({ config, onSave, onToast }) {
               onClick={handleTest}
               disabled={testing}
               style={{
-                padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: testing ? 'not-allowed' : 'pointer',
+                padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8,
+                cursor: testing ? 'not-allowed' : 'pointer',
                 border: `1.5px solid ${L.teal}`, background: 'transparent', color: L.teal,
                 opacity: testing ? 0.7 : 1
               }}
             >
-              {testing ? 'Testando...' : 'Testar Conexão'}
+              {testing ? 'Verificando...' : 'Testar Conexão'}
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
               style={{
                 padding: '9px 20px', fontSize: 13, fontWeight: 600, borderRadius: 8,
-                background: L.teal, color: L.white, border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
+                background: L.teal, color: L.white, border: 'none',
+                cursor: saving ? 'not-allowed' : 'pointer',
                 opacity: saving ? 0.7 : 1
               }}
             >

@@ -129,11 +129,15 @@ function TabEnviar({ profile }) {
   const clinicaId = profile?.clinica_id
   const clinicaNome = profile?.clinicas?.nome || 'Clínica'
 
+  // WABA status
+  const [wabaAtivo, setWabaAtivo] = useState(false)
+
   // lembretes section
   const [lembretesDia, setLembretesDia] = useState(null)
   const [loadingLembretes, setLoadingLembretes] = useState(false)
   const [lembreteMode, setLembreteMode] = useState(null) // 'hoje' | 'amanha'
-  const [copiadoId, setCopiadoId] = useState(null)
+  const [sendingId, setSendingId] = useState(null)
+  const [resultMap, setResultMap] = useState({}) // id → { ok, via }
 
   // individual section
   const [busca, setBusca] = useState('')
@@ -144,10 +148,42 @@ function TabEnviar({ profile }) {
   const [proximaConsulta, setProximaConsulta] = useState(null)
   const [templates, setTemplates] = useState([])
   const [templateId, setTemplateId] = useState('')
-  const [copiadoInd, setCopiadoInd] = useState(false)
+  const [indResult, setIndResult] = useState(null) // { ok, via, msg? }
   const [savingInd, setSavingInd] = useState(false)
   const buscaRef = useRef(null)
   const dropdownRef = useRef(null)
+
+  // Load WABA status
+  useEffect(() => {
+    if (!clinicaId) return
+    supabase.from('integracoes_config')
+      .select('ativo')
+      .eq('clinica_id', clinicaId)
+      .eq('tipo', 'whatsapp')
+      .single()
+      .then(({ data }) => setWabaAtivo(data?.ativo === true))
+  }, [clinicaId])
+
+  // Helper: insert pending record then send via API
+  async function sendViaApi(phone, message, pacienteId, tplId, canal) {
+    const { data: msg, error: insErr } = await supabase.from('mensagens_pacientes').insert({
+      clinica_id:  clinicaId,
+      paciente_id: pacienteId,
+      template_id: tplId || null,
+      canal:       canal || 'whatsapp',
+      conteudo:    message,
+      status:      'pendente',
+      usuario_id:  profile?.id || null,
+      enviado_api: true,
+    }).select().single()
+    if (insErr) throw insErr
+
+    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+      body: { action: 'send', phone, message, mensagem_id: msg.id },
+    })
+    if (error || data?.error) throw new Error(data?.error || error.message)
+    return data // { success, wamid }
+  }
 
   useEffect(() => {
     if (!clinicaId) return
@@ -210,28 +246,37 @@ function TabEnviar({ profile }) {
 
   async function copiarLembrete(ag) {
     const paciente = ag.pacientes
-    if (!paciente) return
+    if (!paciente || sendingId === ag.id) return
     const texto = fillTemplate(
       'Olá, {{PACIENTE_NOME}}! Lembramos que você tem consulta agendada para {{DATA_HORA}}. Por favor, confirme sua presença respondendo esta mensagem. Em caso de impossibilidade, entre em contato com antecedência. — {{CLINICA_NOME}}',
       { pacienteNome: paciente.nome, dataHora: fmtDt(ag.data_hora), clinicaNome, telefone: paciente.telefone || '' }
     )
-    try { await navigator.clipboard.writeText(texto) } catch { /* silent */ }
-    setCopiadoId(ag.id)
-    setTimeout(() => setCopiadoId(null), 1500)
-    // open WhatsApp
-    if (paciente.telefone) {
-      window.open(buildWaLink(paciente.telefone, texto), '_blank', 'noopener')
+
+    setSendingId(ag.id)
+    setResultMap(m => ({ ...m, [ag.id]: null }))
+
+    if (wabaAtivo && paciente.telefone) {
+      // Send via WhatsApp Business API
+      try {
+        await sendViaApi(paciente.telefone, texto, paciente.id, null, 'whatsapp')
+        setResultMap(m => ({ ...m, [ag.id]: { ok: true, via: 'api' } }))
+      } catch (e) {
+        setResultMap(m => ({ ...m, [ag.id]: { ok: false, via: 'api', msg: e.message } }))
+      }
+    } else {
+      // Fallback: clipboard + wa.me link
+      try { await navigator.clipboard.writeText(texto) } catch { /* silent */ }
+      if (paciente.telefone) window.open(buildWaLink(paciente.telefone, texto), '_blank', 'noopener')
+      await supabase.from('mensagens_pacientes').insert({
+        clinica_id: clinicaId, paciente_id: paciente.id,
+        template_id: null, canal: 'whatsapp', conteudo: texto,
+        status: 'enviado', usuario_id: profile?.id || null,
+      })
+      setResultMap(m => ({ ...m, [ag.id]: { ok: true, via: 'web' } }))
     }
-    // save to mensagens_pacientes
-    await supabase.from('mensagens_pacientes').insert({
-      clinica_id: clinicaId,
-      paciente_id: paciente.id,
-      template_id: null,
-      canal: 'whatsapp',
-      conteudo: texto,
-      status: 'enviado',
-      usuario_id: profile?.id || null,
-    })
+
+    setSendingId(null)
+    setTimeout(() => setResultMap(m => { const n = { ...m }; delete n[ag.id]; return n }), 3000)
   }
 
   // individual send
@@ -245,25 +290,35 @@ function TabEnviar({ profile }) {
       })
     : ''
 
-  async function copiarIndividual(openWa) {
-    if (!previewText) return
+  async function enviarIndividual() {
+    if (!previewText || savingInd) return
     setSavingInd(true)
-    try { await navigator.clipboard.writeText(previewText) } catch { /* silent */ }
-    if (openWa && pacienteSel?.telefone) {
-      window.open(buildWaLink(pacienteSel.telefone, previewText), '_blank', 'noopener')
+    setIndResult(null)
+    const canal = selectedTemplate?.canal || 'whatsapp'
+
+    if (wabaAtivo && canal === 'whatsapp' && pacienteSel?.telefone) {
+      try {
+        await sendViaApi(pacienteSel.telefone, previewText, pacienteSel.id, templateId || null, canal)
+        setIndResult({ ok: true, via: 'api' })
+      } catch (e) {
+        setIndResult({ ok: false, via: 'api', msg: e.message })
+      }
+    } else {
+      try { await navigator.clipboard.writeText(previewText) } catch { /* silent */ }
+      if (pacienteSel?.telefone) window.open(buildWaLink(pacienteSel.telefone, previewText), '_blank', 'noopener')
+      await supabase.from('mensagens_pacientes').insert({
+        clinica_id: clinicaId, paciente_id: pacienteSel.id,
+        template_id: templateId || null, canal,
+        conteudo: previewText, status: 'enviado', usuario_id: profile?.id || null,
+      })
+      setIndResult({ ok: true, via: 'web' })
     }
-    await supabase.from('mensagens_pacientes').insert({
-      clinica_id: clinicaId,
-      paciente_id: pacienteSel.id,
-      template_id: templateId || null,
-      canal: selectedTemplate?.canal || 'whatsapp',
-      conteudo: previewText,
-      status: 'enviado',
-      usuario_id: profile?.id || null,
-    })
-    setCopiadoInd(true)
-    setTimeout(() => setCopiadoInd(false), 1500)
     setSavingInd(false)
+    setTimeout(() => setIndResult(null), 4000)
+  }
+
+  async function copiarTexto() {
+    try { await navigator.clipboard.writeText(previewText) } catch { /* silent */ }
   }
 
   const idade = pacienteSel?.data_nascimento ? calcIdade(pacienteSel.data_nascimento) : null
@@ -273,8 +328,18 @@ function TabEnviar({ profile }) {
       {/* Lembretes */}
       <div style={{ background: L.bg, border: `1px solid ${L.line}`, borderRadius: 14 }}>
         <div style={{ padding: '18px 20px', borderBottom: `1px solid ${L.line}` }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: L.t1, marginBottom: 4 }}>Lembretes de Consulta</div>
-          <div style={{ fontSize: 12, color: L.t4 }}>Envie lembretes rápidos para pacientes com consulta hoje ou amanhã</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: L.t1 }}>Lembretes de Consulta</div>
+            {wabaAtivo
+              ? <span style={{ fontSize: 11, fontWeight: 600, color: L.green, background: L.greenBg, padding: '3px 9px', borderRadius: 20, border: `1px solid ${L.greenBd}` }}>● API Ativa</span>
+              : <span style={{ fontSize: 11, color: L.t4, background: L.surface, padding: '3px 9px', borderRadius: 20, border: `1px solid ${L.line}` }}>Web Link</span>
+            }
+          </div>
+          <div style={{ fontSize: 12, color: L.t4 }}>
+            {wabaAtivo
+              ? 'Mensagens enviadas diretamente via WhatsApp Business API'
+              : 'Envie lembretes abrindo o WhatsApp Web · Configure a API em Integrações para envio automático'}
+          </div>
         </div>
         <div style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
@@ -319,12 +384,33 @@ function TabEnviar({ profile }) {
                         {pac?.telefone && <span style={{ marginLeft: 8 }}>{pac.telefone}</span>}
                       </div>
                     </div>
-                    <button
-                      onClick={() => copiarLembrete(ag)}
-                      style={{ padding: '7px 14px', borderRadius: 8, background: copiadoId === ag.id ? L.greenBg : L.teal, color: copiadoId === ag.id ? L.green : L.white, fontWeight: 600, fontSize: 12, border: copiadoId === ag.id ? `1px solid ${L.greenBd}` : 'none', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }}
-                    >
-                      {copiadoId === ag.id ? '✓ Copiado!' : '📋 Copiar Mensagem'}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                      <button
+                        onClick={() => copiarLembrete(ag)}
+                        disabled={sendingId === ag.id}
+                        style={{
+                          padding: '7px 14px', borderRadius: 8, fontWeight: 600, fontSize: 12,
+                          cursor: sendingId === ag.id ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.15s', border: 'none', whiteSpace: 'nowrap',
+                          background: resultMap[ag.id]?.ok ? L.greenBg : sendingId === ag.id ? L.hover : L.teal,
+                          color: resultMap[ag.id]?.ok ? L.green : sendingId === ag.id ? L.t3 : L.white,
+                          opacity: sendingId === ag.id ? 0.7 : 1,
+                        }}
+                      >
+                        {sendingId === ag.id
+                          ? '⏳ Enviando...'
+                          : resultMap[ag.id]?.ok
+                            ? `✓ ${resultMap[ag.id].via === 'api' ? 'Enviado via API' : 'Copiado!'}`
+                            : wabaAtivo
+                              ? '📤 Enviar via API'
+                              : '📋 Copiar Mensagem'}
+                      </button>
+                      {resultMap[ag.id] && !resultMap[ag.id].ok && (
+                        <div style={{ fontSize: 10, color: L.red, maxWidth: 180, textAlign: 'right' }}>
+                          {resultMap[ag.id].msg || 'Erro ao enviar'}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -420,21 +506,50 @@ function TabEnviar({ profile }) {
 
             {/* action buttons */}
             {previewText && (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => copiarIndividual(true)}
-                  disabled={savingInd}
-                  style={{ flex: 2, padding: '9px 18px', background: L.teal, color: L.white, fontWeight: 600, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, opacity: savingInd ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                >
-                  {copiadoInd ? '✓ Copiado!' : '📋 Copiar e Abrir WhatsApp'}
-                </button>
-                <button
-                  onClick={() => copiarIndividual(false)}
-                  disabled={savingInd}
-                  style={{ flex: 1, padding: '9px 18px', background: L.surface, color: L.t2, fontWeight: 500, borderRadius: 8, border: `1.5px solid ${L.line}`, cursor: 'pointer', fontSize: 13 }}
-                >
-                  Copiar Texto
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={enviarIndividual}
+                    disabled={savingInd}
+                    style={{
+                      flex: 2, padding: '9px 18px', borderRadius: 8, border: 'none',
+                      fontWeight: 600, fontSize: 13, cursor: savingInd ? 'not-allowed' : 'pointer',
+                      opacity: savingInd ? 0.7 : 1,
+                      background: indResult?.ok ? L.greenBg : L.teal,
+                      color: indResult?.ok ? L.green : L.white,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {savingInd
+                      ? '⏳ Enviando...'
+                      : indResult?.ok
+                        ? `✓ ${indResult.via === 'api' ? 'Enviado via API!' : 'Copiado!'}`
+                        : wabaAtivo
+                          ? '📤 Enviar via WhatsApp API'
+                          : '📋 Copiar e Abrir WhatsApp'}
+                  </button>
+                  <button
+                    onClick={copiarTexto}
+                    style={{
+                      flex: 1, padding: '9px 18px', background: L.surface, color: L.t2,
+                      fontWeight: 500, borderRadius: 8, border: `1.5px solid ${L.line}`,
+                      cursor: 'pointer', fontSize: 13,
+                    }}
+                  >
+                    Copiar Texto
+                  </button>
+                </div>
+                {indResult && !indResult.ok && (
+                  <div style={{ padding: '8px 12px', borderRadius: 8, background: L.redBg, color: L.red, fontSize: 12 }}>
+                    <strong>Erro:</strong> {indResult.msg || 'Falha ao enviar via API'}
+                  </div>
+                )}
+                {wabaAtivo && (
+                  <div style={{ fontSize: 11, color: L.green, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>●</span> WhatsApp Business API ativa — envio direto sem abrir WhatsApp Web
+                  </div>
+                )}
               </div>
             )}
 
@@ -732,9 +847,11 @@ function TabHistorico({ profile }) {
   const filtradas = filtroCanal === 'all' ? mensagens : mensagens.filter(m => m.canal === filtroCanal)
 
   const STATUS_META = {
-    enviado:  { label: 'Enviado',  color: L.green,  bg: L.greenBg,  bd: L.greenBd  },
-    pendente: { label: 'Pendente', color: L.yellow, bg: L.yellowBg, bd: L.yellowBd },
-    falhou:   { label: 'Falhou',   color: L.red,    bg: L.redBg,    bd: L.redBd    },
+    enviado:  { label: 'Enviado',   color: L.green,  bg: L.greenBg,  bd: L.greenBd  },
+    entregue: { label: 'Entregue',  color: L.teal,   bg: L.tealBg,   bd: L.teal+'40'},
+    lido:     { label: 'Lido ✓✓',  color: L.blue,   bg: L.blueBg,   bd: L.blueBd   },
+    pendente: { label: 'Pendente',  color: L.yellow, bg: L.yellowBg, bd: L.yellowBd },
+    falhou:   { label: 'Falhou',    color: L.red,    bg: L.redBg,    bd: L.redBd    },
   }
 
   return (
