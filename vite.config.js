@@ -17,7 +17,7 @@ export default defineConfig({
         scope: '/C4Clinic/',
         display: 'standalone',
         background_color: '#ffffff',
-        theme_color: '#0d6e6e',
+        theme_color: '#7c3aed',
         orientation: 'portrait-primary',
         lang: 'pt-BR',
         dir: 'ltr',
