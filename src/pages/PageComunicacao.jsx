@@ -129,8 +129,9 @@ function TabEnviar({ profile }) {
   const clinicaId = profile?.clinica_id
   const clinicaNome = profile?.clinicas?.nome || 'Clínica'
 
-  // WABA status
-  const [wabaAtivo, setWabaAtivo] = useState(false)
+  // integration status
+  const [evolutionAtivo, setEvolutionAtivo] = useState(false)
+  const [wabaAtivo, setWabaAtivo]           = useState(false)
 
   // lembretes section
   const [lembretesDia, setLembretesDia] = useState(null)
@@ -153,18 +154,19 @@ function TabEnviar({ profile }) {
   const buscaRef = useRef(null)
   const dropdownRef = useRef(null)
 
-  // Load WABA status
+  // Load integration status (Evolution API takes priority over Meta WABA)
   useEffect(() => {
     if (!clinicaId) return
-    supabase.from('integracoes_config')
-      .select('ativo')
-      .eq('clinica_id', clinicaId)
-      .eq('tipo', 'whatsapp')
-      .single()
-      .then(({ data }) => setWabaAtivo(data?.ativo === true))
+    Promise.all([
+      supabase.from('integracoes_config').select('ativo').eq('clinica_id', clinicaId).eq('tipo', 'evolution_api').single(),
+      supabase.from('integracoes_config').select('ativo').eq('clinica_id', clinicaId).eq('tipo', 'whatsapp').single(),
+    ]).then(([ev, wa]) => {
+      setEvolutionAtivo(ev.data?.ativo === true)
+      setWabaAtivo(wa.data?.ativo === true)
+    })
   }, [clinicaId])
 
-  // Helper: insert pending record then send via API
+  // Helper: insert pending record then send via the configured API
   async function sendViaApi(phone, message, pacienteId, tplId, canal) {
     const { data: msg, error: insErr } = await supabase.from('mensagens_pacientes').insert({
       clinica_id:  clinicaId,
@@ -178,11 +180,15 @@ function TabEnviar({ profile }) {
     }).select().single()
     if (insErr) throw insErr
 
-    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
-      body: { action: 'send', phone, message, mensagem_id: msg.id },
-    })
+    // Evolution API takes priority over Meta WABA
+    const fn   = evolutionAtivo ? 'evolution-proxy' : 'whatsapp-send'
+    const body = evolutionAtivo
+      ? { action: 'send', phone, message, mensagem_id: msg.id }
+      : { action: 'send', phone, message, mensagem_id: msg.id }
+
+    const { data, error } = await supabase.functions.invoke(fn, { body })
     if (error || data?.error) throw new Error(data?.error || error.message)
-    return data // { success, wamid }
+    return data
   }
 
   useEffect(() => {
@@ -255,8 +261,9 @@ function TabEnviar({ profile }) {
     setSendingId(ag.id)
     setResultMap(m => ({ ...m, [ag.id]: null }))
 
-    if (wabaAtivo && paciente.telefone) {
-      // Send via WhatsApp Business API
+    const apiAtivo = evolutionAtivo || wabaAtivo
+    if (apiAtivo && paciente.telefone) {
+      // Send via API (Evolution or Meta WABA)
       try {
         await sendViaApi(paciente.telefone, texto, paciente.id, null, 'whatsapp')
         setResultMap(m => ({ ...m, [ag.id]: { ok: true, via: 'api' } }))
@@ -295,8 +302,9 @@ function TabEnviar({ profile }) {
     setSavingInd(true)
     setIndResult(null)
     const canal = selectedTemplate?.canal || 'whatsapp'
+    const apiAtivo = evolutionAtivo || wabaAtivo
 
-    if (wabaAtivo && canal === 'whatsapp' && pacienteSel?.telefone) {
+    if (apiAtivo && canal === 'whatsapp' && pacienteSel?.telefone) {
       try {
         await sendViaApi(pacienteSel.telefone, previewText, pacienteSel.id, templateId || null, canal)
         setIndResult({ ok: true, via: 'api' })
@@ -330,15 +338,19 @@ function TabEnviar({ profile }) {
         <div style={{ padding: '18px 20px', borderBottom: `1px solid ${L.line}` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: L.t1 }}>Lembretes de Consulta</div>
-            {wabaAtivo
-              ? <span style={{ fontSize: 11, fontWeight: 600, color: L.green, background: L.greenBg, padding: '3px 9px', borderRadius: 20, border: `1px solid ${L.greenBd}` }}>● API Ativa</span>
-              : <span style={{ fontSize: 11, color: L.t4, background: L.surface, padding: '3px 9px', borderRadius: 20, border: `1px solid ${L.line}` }}>Web Link</span>
+            {evolutionAtivo
+              ? <span style={{ fontSize: 11, fontWeight: 600, color: '#25d366', background: '#f0fff4', padding: '3px 9px', borderRadius: 20, border: '1px solid #b7f5cc' }}>● Evolution API</span>
+              : wabaAtivo
+                ? <span style={{ fontSize: 11, fontWeight: 600, color: L.green, background: L.greenBg, padding: '3px 9px', borderRadius: 20, border: `1px solid ${L.greenBd}` }}>● Meta API</span>
+                : <span style={{ fontSize: 11, color: L.t4, background: L.surface, padding: '3px 9px', borderRadius: 20, border: `1px solid ${L.line}` }}>Web Link</span>
             }
           </div>
           <div style={{ fontSize: 12, color: L.t4 }}>
-            {wabaAtivo
-              ? 'Mensagens enviadas diretamente via WhatsApp Business API'
-              : 'Envie lembretes abrindo o WhatsApp Web · Configure a API em Integrações para envio automático'}
+            {evolutionAtivo
+              ? 'Envio direto via Evolution API (QR Code) — sem aprovação Meta'
+              : wabaAtivo
+                ? 'Envio direto via WhatsApp Business API (Meta)'
+                : 'Configure a integração em Integrações para envio automático sem abrir o WhatsApp Web'}
           </div>
         </div>
         <div style={{ padding: '16px 20px' }}>
@@ -400,9 +412,9 @@ function TabEnviar({ profile }) {
                         {sendingId === ag.id
                           ? '⏳ Enviando...'
                           : resultMap[ag.id]?.ok
-                            ? `✓ ${resultMap[ag.id].via === 'api' ? 'Enviado via API' : 'Copiado!'}`
-                            : wabaAtivo
-                              ? '📤 Enviar via API'
+                            ? `✓ ${resultMap[ag.id].via === 'api' ? 'Enviado!' : 'Copiado!'}`
+                            : (evolutionAtivo || wabaAtivo)
+                              ? '📤 Enviar pelo WhatsApp'
                               : '📋 Copiar Mensagem'}
                       </button>
                       {resultMap[ag.id] && !resultMap[ag.id].ok && (
@@ -524,9 +536,9 @@ function TabEnviar({ profile }) {
                     {savingInd
                       ? '⏳ Enviando...'
                       : indResult?.ok
-                        ? `✓ ${indResult.via === 'api' ? 'Enviado via API!' : 'Copiado!'}`
-                        : wabaAtivo
-                          ? '📤 Enviar via WhatsApp API'
+                        ? `✓ ${indResult.via === 'api' ? 'Enviado!' : 'Copiado!'}`
+                        : (evolutionAtivo || wabaAtivo)
+                          ? '📤 Enviar pelo WhatsApp'
                           : '📋 Copiar e Abrir WhatsApp'}
                   </button>
                   <button
@@ -545,9 +557,9 @@ function TabEnviar({ profile }) {
                     <strong>Erro:</strong> {indResult.msg || 'Falha ao enviar via API'}
                   </div>
                 )}
-                {wabaAtivo && (
+                {(evolutionAtivo || wabaAtivo) && (
                   <div style={{ fontSize: 11, color: L.green, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>●</span> WhatsApp Business API ativa — envio direto sem abrir WhatsApp Web
+                    <span>●</span> {evolutionAtivo ? 'Evolution API ativa — envio direto via QR Code' : 'Meta WhatsApp API ativa — envio direto'}
                   </div>
                 )}
               </div>

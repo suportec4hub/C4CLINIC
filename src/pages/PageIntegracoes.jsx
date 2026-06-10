@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
 
@@ -106,6 +106,280 @@ const INTEGRATIONS_META = [
 ]
 
 const WEBHOOK_URL = 'https://tbfrwnfajrcpimhflmhv.supabase.co/functions/v1/whatsapp-webhook'
+
+// ─── Evolution API card ───────────────────────────────────────────────────────
+function CardEvolutionAPI({ config, onSave, onToast }) {
+  const [expanded, setExpanded]  = useState(false)
+  const [ativo, setAtivo]        = useState(config?.ativo ?? false)
+  const [fields, setFields]      = useState({
+    server_url:    config?.config?.server_url    || '',
+    api_key:       config?.config?.api_key       || '',
+    instance_name: config?.config?.instance_name || '',
+  })
+  const [showKey, setShowKey]    = useState(false)
+  const [qr, setQr]              = useState(null)       // base64 string
+  const [connState, setConnState] = useState('close')   // 'open'|'close'|'connecting'|'qr'
+  const [connecting, setConnecting] = useState(false)
+  const [saving, setSaving]      = useState(false)
+  const pollRef  = useRef(null)
+  const qrTimer  = useRef(null)
+
+  const set = (k, v) => setFields(f => ({ ...f, [k]: v }))
+
+  // Load status when config exists and card opens
+  useEffect(() => {
+    if (expanded && config?.config?.server_url) checkStatus(config.config)
+    return () => { clearInterval(pollRef.current); clearTimeout(qrTimer.current) }
+  }, [expanded]) // eslint-disable-line
+
+  function startStatusPoll(cfg) {
+    clearInterval(pollRef.current)
+    pollRef.current = setInterval(() => checkStatus(cfg || fields), 3000)
+  }
+
+  function stopPoll() { clearInterval(pollRef.current) }
+
+  async function checkStatus(cfg) {
+    const f = cfg || fields
+    if (!f.server_url || !f.api_key || !f.instance_name) return
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-proxy', {
+        body: { action: 'status', ...f },
+      })
+      if (error || data?.error) return
+      const s = data.state || 'close'
+      if (s === 'open') {
+        setConnState('open')
+        setQr(null)
+        setConnecting(false)
+        stopPoll()
+        clearTimeout(qrTimer.current)
+      } else {
+        setConnState(s)
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function handleConnect() {
+    if (!fields.server_url || !fields.api_key || !fields.instance_name) {
+      onToast('Preencha URL do servidor, API Key e nome da instância', 'red')
+      return
+    }
+    setConnecting(true)
+    setConnState('connecting')
+    setQr(null)
+
+    // Create instance (ignore 409 if already exists)
+    await supabase.functions.invoke('evolution-proxy', {
+      body: { action: 'create_instance', ...fields },
+    })
+
+    // Get QR code
+    const { data, error } = await supabase.functions.invoke('evolution-proxy', {
+      body: { action: 'connect', ...fields },
+    })
+
+    if (error || data?.error) {
+      onToast(data?.error || error?.message || 'Erro ao conectar', 'red')
+      setConnecting(false)
+      setConnState('close')
+      return
+    }
+
+    if (data.qr) {
+      setQr(data.qr)
+      setConnState('qr')
+      startStatusPoll(fields)
+      // Auto-refresh QR after 28s if still not connected
+      qrTimer.current = setTimeout(() => refreshQR(), 28000)
+    } else if (data.state === 'open') {
+      setConnState('open')
+      setConnecting(false)
+      onToast('WhatsApp conectado com sucesso!', 'green')
+    }
+  }
+
+  async function refreshQR() {
+    clearTimeout(qrTimer.current)
+    if (connState === 'open') return
+    const { data } = await supabase.functions.invoke('evolution-proxy', {
+      body: { action: 'connect', ...fields },
+    })
+    if (data?.qr) {
+      setQr(data.qr)
+      qrTimer.current = setTimeout(() => refreshQR(), 28000)
+    }
+  }
+
+  async function handleDisconnect() {
+    stopPoll()
+    clearTimeout(qrTimer.current)
+    await supabase.functions.invoke('evolution-proxy', {
+      body: { action: 'disconnect', ...fields },
+    })
+    setConnState('close')
+    setQr(null)
+    setConnecting(false)
+    onToast('WhatsApp desconectado', 'green')
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await onSave('evolution_api', 'Evolution API (WhatsApp QR)', ativo, fields)
+    setSaving(false)
+  }
+
+  const isOpen = connState === 'open'
+  const isQR   = connState === 'qr'
+
+  return (
+    <div style={{ background: L.bg, border: `2px solid ${isOpen ? L.green + '60' : L.line}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.3s' }}>
+      {/* header */}
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px', cursor: 'pointer', borderBottom: expanded ? `1px solid ${L.line}` : 'none', background: L.surface }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0, position: 'relative' }}>
+          💬
+          {isOpen && <div style={{ position: 'absolute', top: -3, right: -3, width: 12, height: 12, borderRadius: '50%', background: L.green, border: `2px solid ${L.bg}` }} />}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: L.t1 }}>
+            WhatsApp via QR Code
+            <span style={{ marginLeft: 8, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: L.teal, fontWeight: 600 }}>Evolution API</span>
+          </div>
+          <div style={{ fontSize: 12, color: L.t3, marginTop: 2 }}>
+            Escaneie com qualquer número do WhatsApp — sem aprovação Meta necessária
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isOpen
+            ? <Badge color={L.green} bg={L.greenBg} bd={L.greenBd}>● Conectado</Badge>
+            : isQR
+              ? <Badge color={L.yellow} bg={L.yellowBg} bd={L.yellowBd}>Aguardando scan</Badge>
+              : connState === 'connecting'
+                ? <Badge color={L.blue} bg={L.blueBg} bd={L.blueBd}>Conectando...</Badge>
+                : <Badge color={L.t4} bg={L.surface} bd={L.line}>Desconectado</Badge>
+          }
+          <Toggle checked={ativo} onChange={v => { setAtivo(v); setExpanded(true) }} />
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ padding: '20px' }}>
+
+          {/* QR Code panel */}
+          {isQR && qr && (
+            <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px', background: L.surface, borderRadius: 12, border: `2px dashed ${L.green}40` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: L.t1 }}>Escaneie o QR Code com seu WhatsApp</div>
+              <img
+                src={qr}
+                alt="QR Code WhatsApp"
+                style={{ width: 220, height: 220, borderRadius: 12, border: `4px solid ${L.bg}`, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', imageRendering: 'pixelated' }}
+              />
+              <div style={{ fontSize: 11, color: L.t4, textAlign: 'center' }}>
+                No WhatsApp: Menu → Aparelhos conectados → Conectar aparelho<br />
+                <span style={{ color: L.yellow }}>QR Code expira em ~30s — atualizado automaticamente</span>
+              </div>
+              <button
+                onClick={refreshQR}
+                style={{ padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 600, background: L.surface, color: L.teal, border: `1.5px solid ${L.teal}40`, cursor: 'pointer' }}
+              >
+                ↻ Atualizar QR Code
+              </button>
+            </div>
+          )}
+
+          {/* Connected panel */}
+          {isOpen && (
+            <div style={{ marginBottom: 20, padding: '16px', background: L.greenBg, borderRadius: 12, border: `1px solid ${L.greenBd}`, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ fontSize: 28 }}>✅</div>
+              <div>
+                <div style={{ fontWeight: 700, color: L.green, fontSize: 14 }}>WhatsApp Conectado</div>
+                <div style={{ fontSize: 12, color: L.t3, marginTop: 2 }}>Instância <strong>{fields.instance_name}</strong> está online e pronta para enviar mensagens</div>
+              </div>
+              <button
+                onClick={handleDisconnect}
+                style={{ marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: L.redBg, color: L.red, border: `1px solid ${L.redBd}`, cursor: 'pointer', flexShrink: 0 }}
+              >
+                Desconectar
+              </button>
+            </div>
+          )}
+
+          <Field label="URL do Servidor Evolution API">
+            <input style={inp} value={fields.server_url}
+              onChange={e => set('server_url', e.target.value)}
+              placeholder="https://evolution.seuservidor.com" />
+          </Field>
+
+          <Field label="API Key (Global)">
+            <div style={{ position: 'relative' }}>
+              <input
+                style={{ ...inp, paddingRight: 40 }}
+                type={showKey ? 'text' : 'password'}
+                value={fields.api_key}
+                onChange={e => set('api_key', e.target.value)}
+                placeholder="B6D711FCDE4D4FD5936544120E713976"
+              />
+              <button type="button" onClick={() => setShowKey(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: L.t3, fontSize: 14 }}>
+                {showKey ? '🙈' : '👁'}
+              </button>
+            </div>
+          </Field>
+
+          <Field label="Nome da Instância">
+            <input style={inp} value={fields.instance_name}
+              onChange={e => set('instance_name', e.target.value)}
+              placeholder="clinica_abc" />
+            <div style={{ fontSize: 11, color: L.t4, marginTop: 4 }}>Use apenas letras, números e underscores. Ex: clinica_c4hub</div>
+          </Field>
+
+          {/* features */}
+          <div style={{ background: L.surface, border: `1px solid ${L.line}`, borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: L.t4, fontFamily: "'JetBrains Mono', monospace", marginBottom: 10 }}>VANTAGENS</div>
+            {[
+              'Qualquer número — sem aprovação da Meta',
+              'Envio e recebimento de mensagens',
+              'QR Code direto no sistema — sem redirecionamento',
+              'Reconexão automática',
+            ].map(f => (
+              <div key={f} style={{ fontSize: 13, color: L.t2, marginBottom: 6, display: 'flex', gap: 8 }}>
+                <span style={{ color: L.green }}>✓</span> {f}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            {!isOpen ? (
+              <button
+                onClick={handleConnect}
+                disabled={connecting}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', cursor: connecting ? 'not-allowed' : 'pointer', background: connecting ? L.surface : '#25d366', color: connecting ? L.t3 : '#fff', opacity: connecting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                {connecting ? '⏳ Gerando QR Code...' : '📲 Gerar QR Code e Conectar'}
+              </button>
+            ) : (
+              <button
+                onClick={() => { setExpanded(false); checkStatus(fields) }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 600, border: `1.5px solid ${L.green}`, background: 'transparent', color: L.green, cursor: 'pointer' }}
+              >
+                ✓ Conectado
+              </button>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: '10px 22px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: L.teal, color: L.white, border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── WhatsApp card ────────────────────────────────────────────────────────────
 function CardWhatsApp({ config, onSave, onToast }) {
@@ -1114,6 +1388,7 @@ export default function PageIntegracoes({ profile }) {
       {/* tab 0 — cards grid */}
       {!loading && tab === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <CardEvolutionAPI config={configs['evolution_api']} onSave={handleSave} onToast={showToast} />
           <CardWhatsApp    config={configs['whatsapp']}     onSave={handleSave} onToast={showToast} />
           <CardViaCEP      config={configs['viacep']}       onSave={handleSave} onToast={showToast} />
           <CardCertificado config={configs['cert_digital']} onSave={handleSave} onToast={showToast} />
