@@ -1,15 +1,38 @@
 {
   "rewrites": [
-    { "source": "/C4Clinic/(.*)", "destination": "/index.html" },
-    { "source": "/C4Clinic", "destination": "/index.html" },
-    { "source": "/", "destination": "/index.html" }
+    { "source": "/C4Clinic/assets/:file", "destination": "/assets/:file" },
+    { "source": "/C4Clinic/:file.png",         "destination": "/:file.png" },
+    { "source": "/C4Clinic/:file.svg",         "destination": "/:file.svg" },
+    { "source": "/C4Clinic/:file.ico",         "destination": "/:file.ico" },
+    { "source": "/C4Clinic/:file.webmanifest", "destination": "/:file.webmanifest" },
+    { "source": "/C4Clinic/:file.json",        "destination": "/:file.json" },
+    { "source": "/C4Clinic/:file.js",          "destination": "/:file.js" },
+    { "source": "/C4Clinic/:file.css",         "destination": "/:file.css" },
+    { "source": "/C4Clinic/:file.woff",        "destination": "/:file.woff" },
+    { "source": "/C4Clinic/:file.woff2",       "destination": "/:file.woff2" },
+    { "source": "/C4Clinic/(.*)",              "destination": "/index.html" },
+    { "source": "/C4Clinic",                   "destination": "/index.html" },
+    { "source": "/",                           "destination": "/index.html" }
   ],
   "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Service-Worker-Allowed", "value": "/C4Clinic/" },
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
     {
       "source": "/C4Clinic/sw.js",
       "headers": [
         { "key": "Service-Worker-Allowed", "value": "/C4Clinic/" },
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json" }
       ]
     },
     {
