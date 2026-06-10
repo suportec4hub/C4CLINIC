@@ -112,9 +112,9 @@ function CardEvolutionAPI({ config, onSave, onToast }) {
   const [expanded, setExpanded]  = useState(false)
   const [ativo, setAtivo]        = useState(config?.ativo ?? false)
   const [fields, setFields]      = useState({
-    server_url:    config?.config?.server_url    || '',
-    api_key:       config?.config?.api_key       || '',
-    instance_name: config?.config?.instance_name || '',
+    server_url:    config?.configuracoes?.server_url    || 'https://evolution-api-xrrw.srv1583408.hstgr.cloud',
+    api_key:       config?.configuracoes?.api_key       || 'pangAbOM4AI1yo0LlSFAGtclhwQAt31B',
+    instance_name: config?.configuracoes?.instance_name || '',
   })
   const [showKey, setShowKey]    = useState(false)
   const [qr, setQr]              = useState(null)       // base64 string
@@ -128,7 +128,7 @@ function CardEvolutionAPI({ config, onSave, onToast }) {
 
   // Load status when config exists and card opens
   useEffect(() => {
-    if (expanded && config?.config?.server_url) checkStatus(config.config)
+    if (expanded && config?.configuracoes?.server_url) checkStatus(config.configuracoes)
     return () => { clearInterval(pollRef.current); clearTimeout(qrTimer.current) }
   }, [expanded]) // eslint-disable-line
 
@@ -386,9 +386,9 @@ function CardWhatsApp({ config, onSave, onToast }) {
   const [expanded, setExpanded]   = useState(false)
   const [ativo, setAtivo]         = useState(config?.ativo ?? false)
   const [fields, setFields]       = useState({
-    phone_number_id:     config?.config?.phone_number_id     || '',
-    access_token:        config?.config?.access_token        || '',
-    webhook_verify_token:config?.config?.webhook_verify_token|| '',
+    phone_number_id:     config?.configuracoes?.phone_number_id     || '',
+    access_token:        config?.configuracoes?.access_token        || '',
+    webhook_verify_token:config?.configuracoes?.webhook_verify_token|| '',
   })
   const [showToken, setShowToken] = useState(false)
   const [testing, setTesting]     = useState(false)
@@ -721,9 +721,9 @@ function CardCertificado({ config, onSave, onToast }) {
   const [expanded, setExpanded] = useState(false)
   const [ativo, setAtivo]       = useState(config?.ativo ?? false)
   const [fields, setFields]     = useState({
-    tipo_certificado: config?.config?.tipo_certificado || 'A1',
-    senha_certificado: config?.config?.senha_certificado || '',
-    validade: config?.config?.validade || '',
+    tipo_certificado: config?.configuracoes?.tipo_certificado || 'A1',
+    senha_certificado: config?.configuracoes?.senha_certificado || '',
+    validade: config?.configuracoes?.validade || '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -829,9 +829,9 @@ function CardMemed({ config, onSave, onToast }) {
   const [expanded, setExpanded] = useState(false)
   const [ativo, setAtivo]       = useState(config?.ativo ?? false)
   const [fields, setFields]     = useState({
-    api_key: config?.config?.api_key || '',
-    secret_key: config?.config?.secret_key || '',
-    ambiente: config?.config?.ambiente || 'sandbox',
+    api_key: config?.configuracoes?.api_key || '',
+    secret_key: config?.configuracoes?.secret_key || '',
+    ambiente: config?.configuracoes?.ambiente || 'sandbox',
   })
   const [testing, setTesting] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -948,11 +948,11 @@ function CardPix({ config, onSave, onToast }) {
   const [expanded, setExpanded] = useState(false)
   const [ativo, setAtivo]       = useState(config?.ativo ?? false)
   const [fields, setFields]     = useState({
-    provedor: config?.config?.provedor || 'mercadopago',
-    chave_pix: config?.config?.chave_pix || '',
-    client_id: config?.config?.client_id || '',
-    client_secret: config?.config?.client_secret || '',
-    ambiente: config?.config?.ambiente || 'sandbox',
+    provedor: config?.configuracoes?.provedor || 'mercadopago',
+    chave_pix: config?.configuracoes?.chave_pix || '',
+    client_id: config?.configuracoes?.client_id || '',
+    client_secret: config?.configuracoes?.client_secret || '',
+    ambiente: config?.configuracoes?.ambiente || 'sandbox',
   })
   const [showQR, setShowQR] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1072,8 +1072,8 @@ function CardGoogleAgenda({ config, onSave, onToast }) {
   const [expanded, setExpanded] = useState(false)
   const [ativo, setAtivo]       = useState(config?.ativo ?? false)
   const [fields, setFields]     = useState({
-    calendar_id: config?.config?.calendar_id || '',
-    sync_interval: config?.config?.sync_interval || '15',
+    calendar_id: config?.configuracoes?.calendar_id || '',
+    sync_interval: config?.configuracoes?.sync_interval || '15',
   })
   const [saving, setSaving] = useState(false)
 
@@ -1294,13 +1294,13 @@ export default function PageIntegracoes({ profile }) {
     if (existing) {
       const { error } = await supabase
         .from('integracoes_config')
-        .update({ ativo, config, updated_at: new Date().toISOString() })
+        .update({ ativo, configuracoes: config, ultimo_sync: new Date().toISOString() })
         .eq('id', existing.id)
       err = error
     } else {
       const { error } = await supabase
         .from('integracoes_config')
-        .insert({ clinica_id: clinicaId, tipo, nome, ativo, config })
+        .insert({ clinica_id: clinicaId, tipo, nome, ativo, configuracoes: config })
       err = error
     }
     if (err) {
