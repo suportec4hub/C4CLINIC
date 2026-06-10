@@ -10,9 +10,8 @@
   <meta name="apple-mobile-web-app-title" content="C4CLINIC" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>C4CLINIC — by C4HUB</title>
-  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="/C4Clinic/logo.svg" />
+  <link rel="apple-touch-icon" href="/C4Clinic/icon-192.png" />
   <style>
     body { margin: 0; padding: 0; background: #ffffff; color: #111827; }
   </style>
@@ -20,14 +19,5 @@
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          .then(r => console.log('[SW] Registered:', r.scope))
-          .catch(e => console.warn('[SW] Failed:', e))
-      })
-    }
-  </script>
 </body>
 </html>
