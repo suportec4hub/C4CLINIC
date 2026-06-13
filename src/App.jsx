@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase.js'
 import { globalCSS, L } from './constants/theme.js'
 import Login from './components/Login.jsx'
 import Shell from './components/Shell.jsx'
+import ForcePasswordChange from './components/ForcePasswordChange.jsx'
 
 function Spinner() {
   return (
@@ -92,6 +93,15 @@ export default function App() {
   )
 
   if (!user) return <Login onLogin={setUser} />
+
+  if (profile?.trocar_senha === true) {
+    return (
+      <ForcePasswordChange
+        user={user}
+        onComplete={() => fetchProfile(user.id)}
+      />
+    )
+  }
 
   return (
     <Shell

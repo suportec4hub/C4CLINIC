@@ -58,7 +58,12 @@ function CargoBadge({ cargo }) {
   )
 }
 
-const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '' }
+function generateTempPassword() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$'
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
+const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '', trocarSenha: false }
 
 export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }) {
   const [usuarios, setUsuarios]   = useState([])
@@ -70,6 +75,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
   const [showPass, setShowPass]   = useState(false)
+  const [copiedPass, setCopiedPass] = useState(false)
 
   const clinicaId = profile?.clinica_id
   const roles = isMaster ? C4HUB_ROLES : CLINICA_ROLES
@@ -94,14 +100,26 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
 
   function openNew() {
     setForm({ ...EMPTY_FORM, cargo: isMaster ? 'admin_clinica' : 'recepcionista' })
-    setError(''); setShowPass(false); setModal('new')
+    setError(''); setShowPass(false); setCopiedPass(false); setModal('new')
   }
   function openEdit(u) {
     setForm({ nome: u.nome, email: u.email || '', cargo: u.cargo, senha: '', confirmarSenha: '' })
     setError(''); setModal(u)
   }
-  function closeModal() { setModal(null); setError('') }
+  function closeModal() { setModal(null); setError(''); setCopiedPass(false) }
   function field(k) { return e => setForm(f => ({ ...f, [k]: e.target.value })) }
+
+  function toggleTrocarSenha(checked) {
+    if (checked) {
+      const tmp = generateTempPassword()
+      setForm(f => ({ ...f, trocarSenha: true, senha: tmp, confirmarSenha: tmp }))
+      setShowPass(true)
+    } else {
+      setForm(f => ({ ...f, trocarSenha: false, senha: '', confirmarSenha: '' }))
+      setShowPass(false)
+    }
+    setCopiedPass(false)
+  }
 
   async function save() {
     if (!form.nome.trim()) { setError('Nome é obrigatório.'); return }
@@ -120,11 +138,12 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
           : clinicaId
 
         const { error: rpcErr } = await supabase.rpc('admin_create_user', {
-          p_email:      form.email.trim().toLowerCase(),
-          p_password:   form.senha,
-          p_nome:       form.nome.trim(),
-          p_cargo:      form.cargo,
-          p_clinica_id: targetClinicaId,
+          p_email:        form.email.trim().toLowerCase(),
+          p_password:     form.senha,
+          p_nome:         form.nome.trim(),
+          p_cargo:        form.cargo,
+          p_clinica_id:   targetClinicaId,
+          p_trocar_senha: form.trocarSenha,
         })
         if (rpcErr) throw rpcErr
       } else {
@@ -356,26 +375,105 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
                     <input value={form.email} onChange={field('email')}
                       placeholder="usuario@exemplo.com" style={inp} type="email" />
                   </FRow>
-                  <FRow label="Senha inicial *">
-                    <div style={{ position: 'relative' }}>
-                      <input value={form.senha} onChange={field('senha')}
-                        placeholder="Mínimo 6 caracteres" style={{ ...inp, paddingRight: 40 }}
-                        type={showPass ? 'text' : 'password'} />
-                      <button
-                        type="button"
-                        onClick={() => setShowPass(v => !v)}
-                        style={{
-                          position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                          background: 'none', border: 'none', cursor: 'pointer', color: L.t3, fontSize: 14
-                        }}
-                      >{showPass ? '🙈' : '👁'}</button>
+
+                  {/* Force password change checkbox */}
+                  <label style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '12px 14px', borderRadius: 10,
+                    background: form.trocarSenha ? L.tealBg : L.surface,
+                    border: `1.5px solid ${form.trocarSenha ? L.teal + '50' : L.line}`,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={form.trocarSenha}
+                      onChange={e => toggleTrocarSenha(e.target.checked)}
+                      style={{ marginTop: 2, accentColor: L.teal, width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: form.trocarSenha ? L.teal : L.t2 }}>
+                        Solicitar troca de senha no primeiro acesso
+                      </div>
+                      <div style={{ fontSize: 11, color: L.t4, marginTop: 2, lineHeight: 1.4 }}>
+                        Uma senha temporátia será gerada. O usuário precisará criar uma nova senha ao fazer login.
+                      </div>
                     </div>
-                  </FRow>
-                  <FRow label="Confirmar senha *">
-                    <input value={form.confirmarSenha} onChange={field('confirmarSenha')}
-                      placeholder="Repita a senha" style={inp}
-                      type={showPass ? 'text' : 'password'} />
-                  </FRow>
+                  </label>
+
+                  {form.trocarSenha ? (
+                    <div style={{
+                      padding: '12px 14px', borderRadius: 10,
+                      background: L.surface, border: `1px solid ${L.line}`,
+                    }}>
+                      <div style={{ fontSize: 11, color: L.t4, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        Senha temporária gerada
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <code style={{
+                          flex: 1, padding: '8px 12px', borderRadius: 8,
+                          background: L.bg, border: `1px solid ${L.line}`,
+                          fontSize: 14, fontFamily: "'JetBrains Mono', monospace",
+                          color: L.t1, letterSpacing: '0.5px',
+                        }}>{form.senha}</code>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(form.senha)
+                            setCopiedPass(true)
+                            setTimeout(() => setCopiedPass(false), 2000)
+                          }}
+                          style={{
+                            padding: '8px 14px', borderRadius: 8, fontSize: 12,
+                            background: copiedPass ? L.greenBg : L.hover,
+                            color: copiedPass ? L.green : L.t2,
+                            border: `1px solid ${copiedPass ? L.greenBd : L.line}`,
+                            cursor: 'pointer', fontWeight: 600, flexShrink: 0,
+                            transition: 'all 0.15s',
+                          }}
+                        >{copiedPass ? '✓ Copiado' : 'Copiar'}</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tmp = generateTempPassword()
+                            setForm(f => ({ ...f, senha: tmp, confirmarSenha: tmp }))
+                            setCopiedPass(false)
+                          }}
+                          title="Gerar nova senha"
+                          style={{
+                            padding: '8px 10px', borderRadius: 8, fontSize: 14,
+                            background: L.hover, color: L.t3,
+                            border: `1px solid ${L.line}`, cursor: 'pointer',
+                          }}
+                        >↻</button>
+                      </div>
+                      <div style={{ fontSize: 11, color: L.t4, marginTop: 6 }}>
+                        Compartilhe esta senha com o usuário. Ele precisará trocá-la no primeiro login.
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <FRow label="Senha inicial *">
+                        <div style={{ position: 'relative' }}>
+                          <input value={form.senha} onChange={field('senha')}
+                            placeholder="Mínimo 6 caracteres" style={{ ...inp, paddingRight: 40 }}
+                            type={showPass ? 'text' : 'password'} />
+                          <button
+                            type="button"
+                            onClick={() => setShowPass(v => !v)}
+                            style={{
+                              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                              background: 'none', border: 'none', cursor: 'pointer', color: L.t3, fontSize: 14
+                            }}
+                          >{showPass ? '🙈' : '👁'}</button>
+                        </div>
+                      </FRow>
+                      <FRow label="Confirmar senha *">
+                        <input value={form.confirmarSenha} onChange={field('confirmarSenha')}
+                          placeholder="Repita a senha" style={inp}
+                          type={showPass ? 'text' : 'password'} />
+                      </FRow>
+                    </>
+                  )}
                 </>
               )}
 
