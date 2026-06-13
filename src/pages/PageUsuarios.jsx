@@ -63,10 +63,11 @@ function generateTempPassword() {
   return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
-const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '', trocarSenha: false }
+const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '', trocarSenha: false, selectedClinicaId: '' }
 
 export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }) {
   const [usuarios, setUsuarios]   = useState([])
+  const [clinicas, setClinicas]   = useState([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [filterCargo, setFilterCargo] = useState('todos')
@@ -79,6 +80,11 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
 
   const clinicaId = profile?.clinica_id
   const roles = isMaster ? C4HUB_ROLES : CLINICA_ROLES
+
+  useEffect(() => {
+    if (!isMaster) return
+    supabase.from('clinicas').select('id, nome').order('nome').then(({ data }) => setClinicas(data || []))
+  }, [isMaster])
 
   const load = useCallback(async () => {
     if (!clinicaId && !isMaster) { setLoading(false); return }
@@ -125,6 +131,8 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
     if (!form.nome.trim()) { setError('Nome é obrigatório.'); return }
     if (modal === 'new') {
       if (!form.email.trim())  { setError('E-mail é obrigatório.'); return }
+      const needsClinica = isMaster && !['c4hub_admin','c4hub'].includes(form.cargo)
+      if (needsClinica && !form.selectedClinicaId) { setError('Selecione a clínica do usuário.'); return }
       if (!form.senha)         { setError('Senha é obrigatória.'); return }
       if (form.senha.length < 6) { setError('Senha deve ter ao menos 6 caracteres.'); return }
       if (form.senha !== form.confirmarSenha) { setError('Senhas não conferem.'); return }
@@ -135,7 +143,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
       if (modal === 'new') {
         const targetClinicaId = ['c4hub_admin','c4hub'].includes(form.cargo)
           ? C4HUB_CLINICA_ID
-          : clinicaId
+          : isMaster ? form.selectedClinicaId : clinicaId
 
         const { error: rpcErr } = await supabase.rpc('admin_create_user', {
           p_email:        form.email.trim().toLowerCase(),
@@ -375,6 +383,18 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
                     <input value={form.email} onChange={field('email')}
                       placeholder="usuario@exemplo.com" style={inp} type="email" />
                   </FRow>
+
+                  {/* Clinic selector — only for isMaster creating non-C4HUB users */}
+                  {isMaster && !['c4hub_admin','c4hub'].includes(form.cargo) && (
+                    <FRow label="Clínica / Empresa *">
+                      <select value={form.selectedClinicaId} onChange={field('selectedClinicaId')} style={inp}>
+                        <option value="">Selecione uma clínica...</option>
+                        {clinicas.map(c => (
+                          <option key={c.id} value={c.id}>{c.nome}</option>
+                        ))}
+                      </select>
+                    </FRow>
+                  )}
 
                   {/* Force password change checkbox */}
                   <label style={{
