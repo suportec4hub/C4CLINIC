@@ -58,14 +58,7 @@ function CargoBadge({ cargo }) {
   )
 }
 
-function generateTempPassword() {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$'
-  const bytes = new Uint8Array(12)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, b => chars[b % chars.length]).join('')
-}
-
-const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '', trocarSenha: false, selectedClinicaId: '' }
+const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '', selectedClinicaId: '' }
 
 export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }) {
   const [usuarios, setUsuarios]   = useState([])
@@ -78,7 +71,6 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
   const [showPass, setShowPass]   = useState(false)
-  const [copiedPass, setCopiedPass] = useState(false)
 
   const clinicaId = profile?.clinica_id
   const roles = isMaster ? C4HUB_ROLES : CLINICA_ROLES
@@ -108,29 +100,19 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
 
   function openNew() {
     setForm({ ...EMPTY_FORM, cargo: isMaster ? 'admin_clinica' : 'recepcionista' })
-    setError(''); setShowPass(false); setCopiedPass(false); setModal('new')
+    setError(''); setShowPass(false); setModal('new')
   }
   function openEdit(u) {
-    setForm({ nome: u.nome, email: u.email || '', cargo: u.cargo, senha: '', confirmarSenha: '', trocarSenha: u.trocar_senha || false, selectedClinicaId: u.clinica_id || '' })
-    setError(''); setShowPass(false); setCopiedPass(false); setModal(u)
+    setForm({ nome: u.nome, email: u.email || '', cargo: u.cargo, senha: '', confirmarSenha: '', selectedClinicaId: u.clinica_id || '' })
+    setError(''); setShowPass(false); setModal(u)
   }
-  function closeModal() { setModal(null); setError(''); setCopiedPass(false) }
+  function closeModal() { setModal(null); setError('') }
   function field(k) { return e => setForm(f => ({ ...f, [k]: e.target.value })) }
 
-  function toggleTrocarSenha(checked) {
-    if (checked) {
-      if (modal === 'new') {
-        const tmp = generateTempPassword()
-        setForm(f => ({ ...f, trocarSenha: true, senha: tmp, confirmarSenha: tmp }))
-        setShowPass(true)
-      } else {
-        setForm(f => ({ ...f, trocarSenha: true }))
-      }
-    } else {
-      setForm(f => ({ ...f, trocarSenha: false, senha: '', confirmarSenha: '' }))
-      setShowPass(false)
-    }
-    setCopiedPass(false)
+  async function toggleTrocarSenha(u) {
+    const newVal = !u.trocar_senha
+    const { error } = await supabase.from('usuarios').update({ trocar_senha: newVal }).eq('id', u.id)
+    if (!error) setUsuarios(prev => prev.map(x => x.id === u.id ? { ...x, trocar_senha: newVal } : x))
   }
 
   async function save() {
@@ -157,11 +139,10 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
           p_nome:         form.nome.trim(),
           p_cargo:        form.cargo,
           p_clinica_id:   targetClinicaId,
-          p_trocar_senha: form.trocarSenha,
         })
         if (rpcErr) throw rpcErr
       } else {
-        const updates = { nome: form.nome.trim(), cargo: form.cargo, trocar_senha: form.trocarSenha }
+        const updates = { nome: form.nome.trim(), cargo: form.cargo }
         const { error: e } = await supabase.from('usuarios').update(updates).eq('id', modal.id)
         if (e) throw e
       }
@@ -266,7 +247,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${L.line}`, background: L.surface }}>
-                {['Usuário', 'Perfil', 'E-mail', 'Status', 'Membro desde', 'Ações'].map(h => (
+                {['Usuário', 'Perfil', 'E-mail', 'Status', 'Troca Senha', 'Membro desde', 'Ações'].map(h => (
                   <th key={h} style={{
                     padding: '10px 16px', textAlign: 'left',
                     fontSize: 11, color: L.t4, fontWeight: 600,
@@ -312,6 +293,19 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
                       border: `1px solid ${u.ativo !== false ? L.greenBd : L.redBd}`,
                       cursor: 'pointer'
                     }}>{u.ativo !== false ? 'Ativo' : 'Inativo'}</button>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                    <label style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={u.trocar_senha || false}
+                        onChange={() => toggleTrocarSenha(u)}
+                        style={{ accentColor: L.teal, width: 16, height: 16, cursor: 'pointer' }}
+                      />
+                      {u.trocar_senha && (
+                        <span style={{ fontSize: 9, color: L.teal, fontWeight: 600, letterSpacing: '0.3px' }}>PENDENTE</span>
+                      )}
+                    </label>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: L.t3 }}>
                     {u.criado_em ? new Date(u.criado_em).toLocaleDateString('pt-BR') : '—'}
@@ -383,32 +377,6 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
                 </div>
               )}
 
-              {/* trocar_senha toggle — shown for both new and edit */}
-              <label style={{
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-                padding: '12px 14px', borderRadius: 10,
-                background: form.trocarSenha ? L.tealBg : L.surface,
-                border: `1.5px solid ${form.trocarSenha ? L.teal + '50' : L.line}`,
-                cursor: 'pointer', transition: 'all 0.15s',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={form.trocarSenha}
-                  onChange={e => toggleTrocarSenha(e.target.checked)}
-                  style={{ marginTop: 2, accentColor: L.teal, width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
-                />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: form.trocarSenha ? L.teal : L.t2 }}>
-                    Solicitar troca de senha no próximo acesso
-                  </div>
-                  <div style={{ fontSize: 11, color: L.t4, marginTop: 2, lineHeight: 1.4 }}>
-                    {modal === 'new'
-                      ? 'Uma senha temporária será gerada. O usuário deverá criar uma nova senha ao fazer login.'
-                      : 'O usuário será solicitado a criar uma nova senha na próxima vez que fizer login.'}
-                  </div>
-                </div>
-              </label>
-
               {modal === 'new' && (
                 <>
                   <FRow label="E-mail *">
@@ -428,80 +396,28 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
                     </FRow>
                   )}
 
-                  {form.trocarSenha ? (
-                    <div style={{
-                      padding: '12px 14px', borderRadius: 10,
-                      background: L.surface, border: `1px solid ${L.line}`,
-                    }}>
-                      <div style={{ fontSize: 11, color: L.t4, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                        Senha temporária gerada
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <code style={{
-                          flex: 1, padding: '8px 12px', borderRadius: 8,
-                          background: L.bg, border: `1px solid ${L.line}`,
-                          fontSize: 14, fontFamily: "'JetBrains Mono', monospace",
-                          color: L.t1, letterSpacing: '0.5px',
-                        }}>{form.senha}</code>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(form.senha)
-                            setCopiedPass(true)
-                            setTimeout(() => setCopiedPass(false), 2000)
-                          }}
-                          style={{
-                            padding: '8px 14px', borderRadius: 8, fontSize: 12,
-                            background: copiedPass ? L.greenBg : L.hover,
-                            color: copiedPass ? L.green : L.t2,
-                            border: `1px solid ${copiedPass ? L.greenBd : L.line}`,
-                            cursor: 'pointer', fontWeight: 600, flexShrink: 0,
-                            transition: 'all 0.15s',
-                          }}
-                        >{copiedPass ? '✓ Copiado' : 'Copiar'}</button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const tmp = generateTempPassword()
-                            setForm(f => ({ ...f, senha: tmp, confirmarSenha: tmp }))
-                            setCopiedPass(false)
-                          }}
-                          title="Gerar nova senha"
-                          style={{
-                            padding: '8px 10px', borderRadius: 8, fontSize: 14,
-                            background: L.hover, color: L.t3,
-                            border: `1px solid ${L.line}`, cursor: 'pointer',
-                          }}
-                        >↻</button>
-                      </div>
-                      <div style={{ fontSize: 11, color: L.t4, marginTop: 6 }}>
-                        Compartilhe esta senha com o usuário. Ele precisará trocá-la no primeiro login.
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <FRow label="Senha inicial *">
-                        <div style={{ position: 'relative' }}>
-                          <input value={form.senha} onChange={field('senha')}
-                            placeholder="Mínimo 6 caracteres" style={{ ...inp, paddingRight: 40 }}
-                            type={showPass ? 'text' : 'password'} />
-                          <button
-                            type="button"
-                            onClick={() => setShowPass(v => !v)}
-                            style={{
-                              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                              background: 'none', border: 'none', cursor: 'pointer', color: L.t3, fontSize: 14
-                            }}
-                          >{showPass ? '🙈' : '👁'}</button>
-                        </div>
-                      </FRow>
-                      <FRow label="Confirmar senha *">
-                        <input value={form.confirmarSenha} onChange={field('confirmarSenha')}
-                          placeholder="Repita a senha" style={inp}
+                  <>
+                    <FRow label="Senha inicial *">
+                      <div style={{ position: 'relative' }}>
+                        <input value={form.senha} onChange={field('senha')}
+                          placeholder="Mínimo 6 caracteres" style={{ ...inp, paddingRight: 40 }}
                           type={showPass ? 'text' : 'password'} />
-                      </FRow>
-                    </>
-                  )}
+                        <button
+                          type="button"
+                          onClick={() => setShowPass(v => !v)}
+                          style={{
+                            position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                            background: 'none', border: 'none', cursor: 'pointer', color: L.t3, fontSize: 14
+                          }}
+                        >{showPass ? '🙈' : '👁'}</button>
+                      </div>
+                    </FRow>
+                    <FRow label="Confirmar senha *">
+                      <input value={form.confirmarSenha} onChange={field('confirmarSenha')}
+                        placeholder="Repita a senha" style={inp}
+                        type={showPass ? 'text' : 'password'} />
+                    </FRow>
+                  </>
                 </>
               )}
 
