@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
+import UploadArquivo from '../components/UploadArquivo.jsx'
 
 /* ─── Style helpers ───────────────────────────────────────────── */
 const inp = {
@@ -280,11 +281,15 @@ function ModalExame({ clinicaId, pacientes, medicos, exame, onClose, onSaved }) 
             ))}
           </select>
         </Field>
-        <Field label="URL do Arquivo de Imagem">
-          <input style={inp} placeholder="https://storage.exemplo.com/imagem.jpg"
-            value={form.arquivo_url}
-            onChange={e => setForm(f => ({ ...f, arquivo_url: e.target.value }))}
-            onFocus={focus} onBlur={blur}
+        <Field label="Arquivo de Imagem">
+          <UploadArquivo
+            bucket="imagens-medicas"
+            folder={clinicaId}
+            accept="image/*,application/pdf,video/mp4"
+            label="Enviar imagem / PDF / vídeo"
+            currentUrl={form.arquivo_url}
+            onUpload={(url) => setForm(f => ({ ...f, arquivo_url: url }))}
+            onError={(msg) => setErr(msg)}
           />
         </Field>
       </Row2>
