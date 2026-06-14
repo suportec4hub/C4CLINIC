@@ -91,7 +91,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
     setLoading(true)
     let q = supabase
       .from('usuarios')
-      .select('id, nome, email, cargo, clinica_id, criado_em, ativo')
+      .select('id, nome, email, cargo, clinica_id, criado_em, ativo, trocar_senha')
       .order('nome')
 
     if (!isMaster) q = q.eq('clinica_id', clinicaId)
@@ -109,8 +109,8 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
     setError(''); setShowPass(false); setCopiedPass(false); setModal('new')
   }
   function openEdit(u) {
-    setForm({ nome: u.nome, email: u.email || '', cargo: u.cargo, senha: '', confirmarSenha: '' })
-    setError(''); setModal(u)
+    setForm({ nome: u.nome, email: u.email || '', cargo: u.cargo, senha: '', confirmarSenha: '', trocarSenha: u.trocar_senha || false, selectedClinicaId: u.clinica_id || '' })
+    setError(''); setShowPass(false); setCopiedPass(false); setModal(u)
   }
   function closeModal() { setModal(null); setError(''); setCopiedPass(false) }
   function field(k) { return e => setForm(f => ({ ...f, [k]: e.target.value })) }
@@ -155,7 +155,7 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
         })
         if (rpcErr) throw rpcErr
       } else {
-        const updates = { nome: form.nome.trim(), cargo: form.cargo }
+        const updates = { nome: form.nome.trim(), cargo: form.cargo, trocar_senha: form.trocarSenha }
         const { error: e } = await supabase.from('usuarios').update(updates).eq('id', modal.id)
         if (e) throw e
       }
@@ -377,6 +377,32 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
                 </div>
               )}
 
+              {/* trocar_senha toggle — shown for both new and edit */}
+              <label style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '12px 14px', borderRadius: 10,
+                background: form.trocarSenha ? L.tealBg : L.surface,
+                border: `1.5px solid ${form.trocarSenha ? L.teal + '50' : L.line}`,
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={form.trocarSenha}
+                  onChange={e => toggleTrocarSenha(e.target.checked)}
+                  style={{ marginTop: 2, accentColor: L.teal, width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: form.trocarSenha ? L.teal : L.t2 }}>
+                    Solicitar troca de senha no próximo acesso
+                  </div>
+                  <div style={{ fontSize: 11, color: L.t4, marginTop: 2, lineHeight: 1.4 }}>
+                    {modal === 'new'
+                      ? 'Uma senha temporária será gerada. O usuário deverá criar uma nova senha ao fazer login.'
+                      : 'O usuário será solicitado a criar uma nova senha na próxima vez que fizer login.'}
+                  </div>
+                </div>
+              </label>
+
               {modal === 'new' && (
                 <>
                   <FRow label="E-mail *">
@@ -395,30 +421,6 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
                       </select>
                     </FRow>
                   )}
-
-                  {/* Force password change checkbox */}
-                  <label style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '12px 14px', borderRadius: 10,
-                    background: form.trocarSenha ? L.tealBg : L.surface,
-                    border: `1.5px solid ${form.trocarSenha ? L.teal + '50' : L.line}`,
-                    cursor: 'pointer', transition: 'all 0.15s',
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={form.trocarSenha}
-                      onChange={e => toggleTrocarSenha(e.target.checked)}
-                      style={{ marginTop: 2, accentColor: L.teal, width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
-                    />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: form.trocarSenha ? L.teal : L.t2 }}>
-                        Solicitar troca de senha no primeiro acesso
-                      </div>
-                      <div style={{ fontSize: 11, color: L.t4, marginTop: 2, lineHeight: 1.4 }}>
-                        Uma senha temporátia será gerada. O usuário precisará criar uma nova senha ao fazer login.
-                      </div>
-                    </div>
-                  </label>
 
                   {form.trocarSenha ? (
                     <div style={{
