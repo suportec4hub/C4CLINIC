@@ -112,8 +112,8 @@ function CardEvolutionAPI({ config, onSave, onToast }) {
   const [expanded, setExpanded]  = useState(false)
   const [ativo, setAtivo]        = useState(config?.ativo ?? false)
   const [fields, setFields]      = useState({
-    server_url:    config?.configuracoes?.server_url    || 'https://evolution-api-xrrw.srv1583408.hstgr.cloud',
-    api_key:       config?.configuracoes?.api_key       || 'pangAbOM4AI1yo0LlSFAGtclhwQAt31B',
+    server_url:    config?.configuracoes?.server_url    || '',
+    api_key:       config?.configuracoes?.api_key       || '',
     instance_name: config?.configuracoes?.instance_name || '',
   })
   const [showKey, setShowKey]    = useState(false)

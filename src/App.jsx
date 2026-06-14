@@ -99,7 +99,40 @@ export default function App() {
       <ForcePasswordChange
         user={user}
         onComplete={() => fetchProfile(user.id)}
+        onLogout={handleLogout}
       />
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100dvh', background: L.bg, padding: 24
+      }}>
+        <div style={{
+          maxWidth: 400, textAlign: 'center',
+          padding: 32, borderRadius: 16,
+          border: `1px solid ${L.redBd}`, background: L.redBg
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+          <div style={{ fontWeight: 700, color: L.red, marginBottom: 8 }}>Erro ao carregar perfil</div>
+          <div style={{ fontSize: 13, color: L.t3, marginBottom: 16 }}>
+            Não foi possível carregar os dados do seu perfil.
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button onClick={() => fetchProfile(user.id)} style={{
+              padding: '9px 20px', borderRadius: 8,
+              background: L.teal, color: L.white, fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer'
+            }}>Tentar novamente</button>
+            <button onClick={handleLogout} style={{
+              padding: '9px 20px', borderRadius: 8,
+              background: L.surface, color: L.t2, fontWeight: 600, fontSize: 13,
+              border: `1px solid ${L.line}`, cursor: 'pointer'
+            }}>Sair</button>
+          </div>
+        </div>
+      </div>
     )
   }
 

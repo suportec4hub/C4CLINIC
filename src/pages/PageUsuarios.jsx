@@ -60,7 +60,9 @@ function CargoBadge({ cargo }) {
 
 function generateTempPassword() {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$'
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  const bytes = new Uint8Array(12)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => chars[b % chars.length]).join('')
 }
 
 const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '', trocarSenha: false, selectedClinicaId: '' }
@@ -117,9 +119,13 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
 
   function toggleTrocarSenha(checked) {
     if (checked) {
-      const tmp = generateTempPassword()
-      setForm(f => ({ ...f, trocarSenha: true, senha: tmp, confirmarSenha: tmp }))
-      setShowPass(true)
+      if (modal === 'new') {
+        const tmp = generateTempPassword()
+        setForm(f => ({ ...f, trocarSenha: true, senha: tmp, confirmarSenha: tmp }))
+        setShowPass(true)
+      } else {
+        setForm(f => ({ ...f, trocarSenha: true }))
+      }
     } else {
       setForm(f => ({ ...f, trocarSenha: false, senha: '', confirmarSenha: '' }))
       setShowPass(false)

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { L } from '../constants/theme.js'
 
-export default function ForcePasswordChange({ user, onComplete }) {
+export default function ForcePasswordChange({ user, onComplete, onLogout }) {
   const [senha, setSenha]         = useState('')
   const [confirmar, setConfirmar] = useState('')
   const [show, setShow]           = useState(false)
@@ -21,16 +21,22 @@ export default function ForcePasswordChange({ user, onComplete }) {
       const { error: authErr } = await supabase.auth.updateUser({ password: senha })
       if (authErr) throw authErr
 
-      // 2. Clear the flag in our users table
-      const { error: dbErr } = await supabase
-        .from('usuarios')
-        .update({ trocar_senha: false })
-        .eq('id', user.id)
-      if (dbErr) throw dbErr
+      // 2. Clear the flag — retry up to 3 times to avoid infinite loop if DB is momentarily unavailable
+      let dbErr
+      for (let i = 0; i < 3; i++) {
+        const { error } = await supabase.from('usuarios').update({ trocar_senha: false }).eq('id', user.id)
+        if (!error) { dbErr = null; break }
+        dbErr = error
+        if (i < 2) await new Promise(r => setTimeout(r, 600 * (i + 1)))
+      }
+      if (dbErr) {
+        setError('Senha alterada com sucesso! Porém houve um erro ao atualizar seu perfil. Clique em Sair e faça login novamente.')
+        return
+      }
 
       onComplete()
-    } catch (e) {
-      setError(e.message || 'Erro ao alterar senha.')
+    } catch (err) {
+      setError(err.message || 'Erro ao alterar senha.')
     } finally {
       setSaving(false)
     }
@@ -158,7 +164,20 @@ export default function ForcePasswordChange({ user, onComplete }) {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11, color: L.t4 }}>
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 12, color: L.t4, textDecoration: 'underline',
+            }}
+          >
+            Sair da conta
+          </button>
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: 10, fontSize: 11, color: L.t4 }}>
           🔒 Sua senha é criptografada e nunca é armazenada em texto simples
         </div>
       </div>
