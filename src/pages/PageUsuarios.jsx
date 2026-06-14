@@ -60,7 +60,7 @@ function CargoBadge({ cargo }) {
 
 const EMPTY_FORM = { nome: '', email: '', cargo: 'recepcionista', senha: '', confirmarSenha: '', selectedClinicaId: '' }
 
-export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }) {
+export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster, isMobile, isTablet }) {
   const [usuarios, setUsuarios]   = useState([])
   const [clinicas, setClinicas]   = useState([])
   const [loading, setLoading]     = useState(true)
@@ -190,9 +190,9 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
   }
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: isMobile ? 12 : isTablet ? 16 : 24 }}>
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 12 : 20 }}>
         {[
           { label: 'Total Usuários', value: stats.total,   color: L.teal },
           { label: 'Admins',         value: stats.admins,  color: L.blue },
@@ -212,26 +212,30 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
       <div style={{
         background: L.bg, border: `1px solid ${L.line}`, borderRadius: 12,
         padding: 16, marginBottom: 16,
-        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        flexDirection: isMobile ? 'column' : 'row'
       }}>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por nome ou e-mail..."
           style={{
             flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8,
-            border: `1px solid ${L.line}`, fontSize: 13, color: L.t1, background: L.surface
+            border: `1px solid ${L.line}`, fontSize: 13, color: L.t1, background: L.surface,
+            width: isMobile ? '100%' : undefined
           }}
         />
         <select value={filterCargo} onChange={e => setFilterCargo(e.target.value)} style={{
           padding: '8px 12px', borderRadius: 8, border: `1px solid ${L.line}`,
-          fontSize: 13, color: L.t2, background: L.surface
+          fontSize: 13, color: L.t2, background: L.surface,
+          width: isMobile ? '100%' : undefined
         }}>
           <option value="todos">Todos os perfis</option>
           {filterRoles.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <button onClick={openNew} style={{
           padding: '8px 18px', borderRadius: 8, background: L.teal,
-          color: L.white, fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer'
+          color: L.white, fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer',
+          width: isMobile ? '100%' : undefined
         }}>+ Novo Usuário</button>
       </div>
 
@@ -243,7 +247,70 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
           <div style={{ padding: 40, textAlign: 'center', color: L.t4 }}>
             {usuarios.length === 0 ? 'Nenhum usuário cadastrado.' : 'Nenhum resultado encontrado.'}
           </div>
+        ) : isMobile ? (
+          /* CARD VIEW para mobile */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {filtered.map((u, i) => (
+              <div key={u.id} style={{
+                padding: '14px 16px',
+                borderBottom: i < filtered.length - 1 ? `1px solid ${L.lineSoft}` : 'none',
+                display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                {/* Row 1: avatar + nome + cargo */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                    background: ['c4hub_admin','c4hub'].includes(u.cargo) ? L.tealBg : L.hover,
+                    border: `1.5px solid ${['c4hub_admin','c4hub'].includes(u.cargo) ? L.teal + '40' : L.line}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, fontWeight: 700,
+                    color: ['c4hub_admin','c4hub'].includes(u.cargo) ? L.teal : L.t3,
+                  }}>{u.nome?.[0]?.toUpperCase() || '?'}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: L.t1, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {u.nome}
+                      {u.id === user.id && <span style={{ fontSize: 10, color: L.teal, fontWeight: 600 }}>Você</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: L.t3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email || '—'}</div>
+                  </div>
+                  <CargoBadge cargo={u.cargo} />
+                </div>
+                {/* Row 2: ações + trocar senha + status */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 48 }}>
+                  <button onClick={() => toggleAtivo(u)} style={{
+                    padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                    background: u.ativo !== false ? L.greenBg : L.redBg,
+                    color: u.ativo !== false ? L.green : L.red,
+                    border: `1px solid ${u.ativo !== false ? L.greenBd : L.redBd}`,
+                    cursor: 'pointer'
+                  }}>{u.ativo !== false ? 'Ativo' : 'Inativo'}</button>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: u.trocar_senha ? L.teal : L.t4 }}>
+                    <input
+                      type="checkbox"
+                      checked={u.trocar_senha || false}
+                      onChange={() => toggleTrocarSenha(u)}
+                      style={{ accentColor: L.teal, width: 14, height: 14, cursor: 'pointer' }}
+                    />
+                    {u.trocar_senha ? 'Troca pendente' : 'Troca senha'}
+                  </label>
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                    <button onClick={() => openEdit(u)} style={{
+                      padding: '5px 12px', borderRadius: 7, fontSize: 12,
+                      background: L.hover, color: L.t2, fontWeight: 500, cursor: 'pointer'
+                    }}>Editar</button>
+                    {u.id !== user.id && (
+                      <button onClick={() => del(u)} style={{
+                        padding: '5px 12px', borderRadius: 7, fontSize: 12,
+                        background: L.redBg, color: L.red, fontWeight: 500, cursor: 'pointer'
+                      }}>Excluir</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
+          /* TABLE VIEW para desktop/tablet */
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${L.line}`, background: L.surface }}>
@@ -335,12 +402,14 @@ export default function PageUsuarios({ user, profile, cargo, isAdmin, isMaster }
       {modal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-          zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+          zIndex: 100, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 16
         }} onClick={e => e.target === e.currentTarget && closeModal()}>
           <div style={{
-            background: L.bg, borderRadius: 16, width: '100%', maxWidth: 480,
-            maxHeight: '90vh', overflowY: 'auto',
-            border: `1px solid ${L.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.18)'
+            background: L.bg, borderRadius: isMobile ? '16px 16px 0 0' : 16,
+            width: '100%', maxWidth: isMobile ? '100%' : 480,
+            maxHeight: '90dvh', overflowY: 'auto',
+            border: `1px solid ${L.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+            ...(isMobile && { position: 'fixed', bottom: 0, left: 0, right: 0, margin: 0 }),
           }}>
             {/* Header */}
             <div style={{

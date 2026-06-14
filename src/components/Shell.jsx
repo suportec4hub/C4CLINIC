@@ -134,6 +134,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [isTablet, setIsTablet] = useState(false)
   const [buscaAberta, setBuscaAberta] = useState(false)
   const [buscaQuery, setBuscaQuery] = useState('')
   const [buscaResultados, setBuscaResultados] = useState({ pacientes: [], medicos: [] })
@@ -173,7 +174,9 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
   useEffect(() => {
     const check = () => {
       const mobile = window.innerWidth < 768
+      const tablet = window.innerWidth >= 768 && window.innerWidth < 1024
       setIsMobile(mobile)
+      setIsTablet(tablet)
       if (mobile) setCollapsed(true)
     }
     check()
@@ -390,7 +393,7 @@ export default function Shell({ user, profile, onLogout, onProfileUpdate }) {
     </div>
   )
 
-  const pageProps = { user, profile, cargo, isMaster, isAdmin, nav }
+  const pageProps = { user, profile, cargo, isMaster, isAdmin, nav, isMobile, isTablet }
 
   if (isPdvTV) {
     return (

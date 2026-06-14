@@ -202,17 +202,31 @@ export const globalCSS = `
   input, textarea, select { font-family: inherit; font-size: inherit; }
   a { text-decoration: none; color: inherit; }
 
-  @media (max-width: 640px) {
+  @media (max-width: 767px) {
     .hide-mobile { display: none !important; }
-    .modal-wrap { width: 100% !important; border-radius: 16px 16px 0 0 !important; }
+    .modal-wrap { width: 100% !important; border-radius: 16px 16px 0 0 !important; max-height: 92dvh !important; }
+    .page-pad { padding: 12px !important; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .card-list { display: flex !important; flex-direction: column; gap: 10px; }
+    .hide-xs { display: none !important; }
+    .stack-mobile { flex-direction: column !important; }
+    .full-mobile { width: 100% !important; }
+    .font-sm-mobile { font-size: 12px !important; }
   }
-  @media (min-width: 640px) and (max-width: 1023px) {
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .hide-tablet { display: none !important; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
     .grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+    .page-pad { padding: 16px !important; }
+    .table-scroll { overflow-x: auto; }
+  }
+  @media (max-width: 1023px) {
+    .hide-lt-desktop { display: none !important; }
   }
   @media (min-width: 1920px) {
     .page-content { max-width: 1800px; margin: 0 auto; }
   }
-
   @media print {
     .no-print { display: none !important; }
     .print-only { display: block !important; }
