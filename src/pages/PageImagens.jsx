@@ -178,6 +178,7 @@ function ModalExame({ clinicaId, pacientes, medicos, exame, onClose, onSaved }) 
       paciente_id: form.paciente_id,
       medico_solicitante_id: form.medico_solicitante_id || null,
       tipo: form.tipo,
+      tipo_exame: form.tipo,  // NOT NULL column required by DB
       regiao_anatomica: form.regiao_anatomica || null,
       descricao: form.descricao || null,
       data_solicitacao: form.data_solicitacao || null,
