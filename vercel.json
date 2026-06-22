@@ -1,18 +1,21 @@
 {
   "rewrites": [
-    { "source": "/C4Clinic/assets/:file", "destination": "/assets/:file" },
+    { "source": "/C4Clinic/assets/:file*", "destination": "/assets/:file" },
+    { "source": "/C4Clinic/sw.js",             "destination": "/sw.js" },
+    { "source": "/C4Clinic/workbox-:file.js",  "destination": "/workbox-:file.js" },
+    { "source": "/C4Clinic/registerSW.js",     "destination": "/registerSW.js" },
     { "source": "/C4Clinic/:file.png",         "destination": "/:file.png" },
     { "source": "/C4Clinic/:file.svg",         "destination": "/:file.svg" },
     { "source": "/C4Clinic/:file.ico",         "destination": "/:file.ico" },
     { "source": "/C4Clinic/:file.webmanifest", "destination": "/:file.webmanifest" },
     { "source": "/C4Clinic/:file.json",        "destination": "/:file.json" },
-    { "source": "/C4Clinic/:file.js",          "destination": "/:file.js" },
-    { "source": "/C4Clinic/:file.css",         "destination": "/:file.css" },
-    { "source": "/C4Clinic/:file.woff",        "destination": "/:file.woff" },
     { "source": "/C4Clinic/:file.woff2",       "destination": "/:file.woff2" },
+    { "source": "/C4Clinic/:file.woff",        "destination": "/:file.woff" },
     { "source": "/C4Clinic/(.*)",              "destination": "/index.html" },
-    { "source": "/C4Clinic",                   "destination": "/index.html" },
-    { "source": "/",                           "destination": "/index.html" }
+    { "source": "/C4Clinic",                   "destination": "/index.html" }
+  ],
+  "redirects": [
+    { "source": "/", "destination": "/C4Clinic/", "permanent": false }
   ],
   "headers": [
     {
