@@ -12,10 +12,12 @@
     { "source": "/C4Clinic/:file.woff2",       "destination": "/:file.woff2" },
     { "source": "/C4Clinic/:file.woff",        "destination": "/:file.woff" },
     { "source": "/C4Clinic/(.*)",              "destination": "/index.html" },
-    { "source": "/C4Clinic",                   "destination": "/index.html" }
+    { "source": "/C4Clinic",                   "destination": "/index.html" },
+    { "source": "/Trafego-Pago",               "destination": "/Trafego-Pago/index.html" },
+    { "source": "/Trafego-Pago/",              "destination": "/Trafego-Pago/index.html" }
   ],
   "redirects": [
-    { "source": "/", "destination": "/C4Clinic/", "permanent": false }
+    { "source": "/", "destination": "/Trafego-Pago/", "permanent": false }
   ],
   "headers": [
     {
@@ -42,6 +44,12 @@
       "source": "/C4Clinic/manifest.webmanifest",
       "headers": [
         { "key": "Content-Type", "value": "application/manifest+json" }
+      ]
+    },
+    {
+      "source": "/Trafego-Pago/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     }
   ]
