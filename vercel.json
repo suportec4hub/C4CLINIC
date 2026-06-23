@@ -12,8 +12,8 @@
     { "source": "/C4Clinic/:file.json",        "destination": "/:file.json" },
     { "source": "/C4Clinic/:file.woff2",       "destination": "/:file.woff2" },
     { "source": "/C4Clinic/:file.woff",        "destination": "/:file.woff" },
-    { "source": "/C4Clinic/(.*)",              "destination": "/index.html" },
-    { "source": "/C4Clinic",                   "destination": "/index.html" },
+    { "source": "/C4Clinic/(.*)",              "destination": "/C4Clinic.html" },
+    { "source": "/C4Clinic",                   "destination": "/C4Clinic.html" },
     { "source": "/Trafego-Pago/",              "destination": "/Trafego-Pago/index.html" }
   ],
   "redirects": [
