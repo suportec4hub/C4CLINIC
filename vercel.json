@@ -13,11 +13,11 @@
     { "source": "/C4Clinic/:file.woff",        "destination": "/:file.woff" },
     { "source": "/C4Clinic/(.*)",              "destination": "/index.html" },
     { "source": "/C4Clinic",                   "destination": "/index.html" },
-    { "source": "/Trafego-Pago",               "destination": "/Trafego-Pago/index.html" },
     { "source": "/Trafego-Pago/",              "destination": "/Trafego-Pago/index.html" }
   ],
   "redirects": [
-    { "source": "/", "destination": "/Trafego-Pago/", "permanent": false }
+    { "source": "/", "destination": "/Trafego-Pago/", "permanent": false },
+    { "source": "/Trafego-Pago", "destination": "/Trafego-Pago/", "permanent": false }
   ],
   "headers": [
     {
